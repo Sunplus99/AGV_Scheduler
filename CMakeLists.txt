@@ -94,7 +94,7 @@ target_link_libraries(AgvSimulator
 # 8. 自动化资源部署 (Post-Build Actions)
 # =========================================================
 # 编译完成后，自动把配置文件拷贝到 bin 目录，方便直接运行
-file(COPY ${CMAKE_SOURCE_DIR}/config.json 
+file(COPY ${CMAKE_SOURCE_DIR}/server/config/config.json 
      DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
 # 自动拷贝地图文件夹

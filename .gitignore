@@ -3,6 +3,9 @@ build/
 bin/
 lib/
 
+# 忽略草稿
+text/  
+
 # 忽略 C++ 编译中间文件
 *.o
 *.a
