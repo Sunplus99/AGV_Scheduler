@@ -1,0 +1,1 @@
+/usr/bin/c++     CMakeFiles/AgvSimulator.dir/client/src/main.cpp.o  -o ../bin/AgvSimulator  ../lib/libmyreactor.a ../lib/libagv_common.a -lpthread -ldl 

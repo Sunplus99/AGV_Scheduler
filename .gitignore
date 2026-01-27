@@ -1,0 +1,17 @@
+# 忽略编译生成目录
+build/
+bin/
+lib/
+
+# 忽略 C++ 编译中间文件
+*.o
+*.a
+*.so
+*.exe
+
+# 忽略 IDE 配置文件
+.vscode/
+.iead/
+
+# 忽略系统文件
+.DS_Store
