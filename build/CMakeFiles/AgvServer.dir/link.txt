@@ -1,1 +1,0 @@
-/usr/bin/c++     CMakeFiles/AgvServer.dir/server/src/main.cpp.o  -o ../bin/AgvServer  ../lib/libagv_logic.a ../lib/libmyreactor.a ../lib/libagv_common.a -lpthread -ldl 

@@ -1,2 +1,0 @@
-/usr/bin/ar qc ../lib/libagv_common.a  CMakeFiles/agv_common.dir/common/src/AsyncLogging.cpp.o CMakeFiles/agv_common.dir/common/src/Logger.cpp.o
-/usr/bin/ranlib ../lib/libagv_common.a

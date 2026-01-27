@@ -1,2 +1,0 @@
-/usr/bin/ar qc ../lib/libagv_logic.a  CMakeFiles/agv_logic.dir/server/src/AgvServer.cpp.o CMakeFiles/agv_logic.dir/server/src/algo/planner/AStarSolver.cpp.o CMakeFiles/agv_logic.dir/server/src/algo/scheduler/GreedyScheduler.cpp.o CMakeFiles/agv_logic.dir/server/src/manager/TaskManager.cpp.o CMakeFiles/agv_logic.dir/server/src/manager/WorldManager.cpp.o CMakeFiles/agv_logic.dir/server/src/map/GridMap.cpp.o CMakeFiles/agv_logic.dir/server/src/session/AgvManager.cpp.o CMakeFiles/agv_logic.dir/server/src/session/AgvSession.cpp.o
-/usr/bin/ranlib ../lib/libagv_logic.a
