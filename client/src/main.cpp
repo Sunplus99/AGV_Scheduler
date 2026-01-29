@@ -449,33 +449,43 @@ private:
 // 3. Main 入口
 // ==========================================
 int main(int argc, char* argv[]) {
-    // 启动 3 辆车模拟
-    std::vector<std::thread> threads;
-    
-    // 定义 3 辆车及其初始位置（地图范围 10x10，可用区域 (1,1) 到 (8,8)）
-    struct AgvConfig {
-        int id;
-        Point start;
-    };
-
-    std::vector<AgvConfig> configs = {
-        {101, {1, 1}},   // 101 从左上角出发
-        {102, {8, 1}},   // 102 从右上角出发
-        {103, {5, 5}}    // 103 在中间
-    };
-
-    for (const auto& cfg : configs) {
-        threads.emplace_back([cfg]() {
-            // 连接本地服务器
-            SimulatedAgv agv(cfg.id, "127.0.0.1", 8888, cfg.start);
-            agv.Run();
-        });
-        
-        // 错开启动时间，避免 Server 瞬间压力过大
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    // 从命令行参数读取 AGV 数量，默认 10 辆
+    int agvCount = 10;
+    if (argc > 1) {
+        agvCount = std::atoi(argv[1]);
+        if (agvCount <= 0 || agvCount > 100) {
+            printf("Invalid AGV count: %d. Using default: 10\n", agvCount);
+            agvCount = 10;
+        }
     }
 
-    // 等待所有线程（实际上是死循环，除非断开）
+    printf("Starting %d AGV simulators...\n", agvCount);
+
+    // 启动多辆车模拟
+    std::vector<std::thread> threads;
+
+    // 动态生成 AGV 配置（网格分布）
+    int gridSize = static_cast<int>(std::ceil(std::sqrt(agvCount)));
+    int mapSize = 50;  // 假设地图大小为 50x50
+    int cellSize = (mapSize - 2) / gridSize;
+
+    for (int i = 0; i < agvCount; ++i) {
+        int agvId = 101 + i;
+        int gx = i % gridSize;
+        int gy = i / gridSize;
+        int x = 1 + gx * cellSize + cellSize / 2;
+        int y = 1 + gy * cellSize + cellSize / 2;
+
+        threads.emplace_back([agvId, x, y]() {
+            SimulatedAgv agv(agvId, "127.0.0.1", 8888, {x, y});
+            agv.Run();
+        });
+
+        // 错开启动时间，避免 Server 瞬间压力过大
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    // 等待所有线程
     for (auto& t : threads) {
         if (t.joinable()) t.join();
     }

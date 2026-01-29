@@ -46,6 +46,9 @@ public:
     // 获取随机可通行点（用于动态任务生成）
     agv::model::Point GetRandomWalkablePoint() const;
 
+    // 生成 N 个均匀分布的安全起点（用于 AGV 初始位置）
+    std::vector<agv::model::Point> GenerateSafeSpawnPoints(int count) const;
+
 // private:
     // 解析文件内容的辅助函数
     // bool ParseFile(const std::string& content);

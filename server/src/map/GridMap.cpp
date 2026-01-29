@@ -102,21 +102,7 @@ void GridMap::CreateRandomMap(int w, int h, double obstacleRatio) {
         }
     }
 
-    // 2. 确保 AGV 起点不是墙（预留安全区域）
-    // 预定义的 AGV 起点位置（与客户端配置对应）
-    std::vector<std::pair<int, int>> safePoints = {
-        {1, 1},   // AGV 101 起点
-        {8, 1},   // AGV 102 起点
-        {5, 5}    // AGV 103 起点
-    };
-
-    for (const auto& [x, y] : safePoints) {
-        if (x >= 0 && x < width_ && y >= 0 && y < height_) {
-            grid_[y][x] = 0;  // 确保起点可通行
-        }
-    }
-
-    // 3. 加上四周围墙
+    // 2. 加上四周围墙
     for(int i=0; i<width_; ++i) {
         grid_[0][i]=1;          // 上墙
         grid_[height_-1][i]=1;  // 下墙
@@ -124,6 +110,30 @@ void GridMap::CreateRandomMap(int w, int h, double obstacleRatio) {
     for(int i=0; i<height_; ++i) {
         grid_[i][0]=1;          // 左墙
         grid_[i][width_-1]=1;   // 右墙
+    }
+
+    // 3. 预留安全起点区域（网格分布）
+    // 将地图分成 4x4 的网格，每个网格中心作为潜在的安全起点
+    int gridSize = 4;
+    int cellWidth = (width_ - 2) / gridSize;   // 减去边界墙
+    int cellHeight = (height_ - 2) / gridSize;
+
+    for (int gy = 0; gy < gridSize; ++gy) {
+        for (int gx = 0; gx < gridSize; ++gx) {
+            int cx = 1 + gx * cellWidth + cellWidth / 2;
+            int cy = 1 + gy * cellHeight + cellHeight / 2;
+
+            // 确保中心点及其周围 3x3 区域可通行
+            for (int dy = -1; dy <= 1; ++dy) {
+                for (int dx = -1; dx <= 1; ++dx) {
+                    int x = cx + dx;
+                    int y = cy + dy;
+                    if (x > 0 && x < width_ - 1 && y > 0 && y < height_ - 1) {
+                        grid_[y][x] = 0;
+                    }
+                }
+            }
+        }
     }
 
     LOG_INFO("Random Map Created: %dx%d with ratio %.2f",width_, height_, obstacleRatio);
@@ -174,4 +184,30 @@ agv::model::Point GridMap::GetRandomWalkablePoint() const {
 
     // 如果 1000 次都没找到，返回一个安全的默认点
     return {1, 1};
+}
+
+// 生成 N 个均匀分布的安全起点
+std::vector<agv::model::Point> GridMap::GenerateSafeSpawnPoints(int count) const {
+    std::vector<agv::model::Point> points;
+
+    // 将地图分成网格，每个网格中心作为起点
+    int gridSize = static_cast<int>(std::ceil(std::sqrt(count)));
+    int cellWidth = (width_ - 2) / gridSize;
+    int cellHeight = (height_ - 2) / gridSize;
+
+    int generated = 0;
+    for (int gy = 0; gy < gridSize && generated < count; ++gy) {
+        for (int gx = 0; gx < gridSize && generated < count; ++gx) {
+            int cx = 1 + gx * cellWidth + cellWidth / 2;
+            int cy = 1 + gy * cellHeight + cellHeight / 2;
+
+            // 确保在地图范围内且可通行
+            if (cx > 0 && cx < width_ - 1 && cy > 0 && cy < height_ - 1 && !IsObstacle(cx, cy)) {
+                points.push_back({cx, cy});
+                generated++;
+            }
+        }
+    }
+
+    return points;
 }
