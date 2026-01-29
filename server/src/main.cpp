@@ -41,34 +41,24 @@ void WmsThreadFunc() {
     LOG_INFO("[WMS] Start Dispatching Tasks...");
 
     // 2. 动态生成任务（从地图中随机选择可通行点作为目标）
-    // 获取地图引用
     const auto& gridMap = agv::manager::WorldManager::Instance().GetGridMap();
 
-    // --- 任务 1：随机目标点 ---
-    {
-        agv::model::Point target = gridMap.GetRandomWalkablePoint();
-        std::string taskId = TaskMgr.AddTask(target, agv::model::ActionType::LIFT_UP);
-        LOG_INFO("[WMS] >>> Order Created: ID=%s, Target=(%d,%d), Type=LIFT_UP",
-                 taskId.c_str(), target.x, target.y);
-    }
+    // 根据在线 AGV 数量生成任务（每辆车 2-3 个任务）
+    int onlineCount = agv::manager::WorldManager::Instance().GetAllAgvs().size();
+    int taskCount = onlineCount * 2;  // 每辆车平均 2 个任务
 
-    // 模拟业务间隔 (500ms)
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    LOG_INFO("[WMS] Generating %d tasks for %d AGVs...", taskCount, onlineCount);
 
-    // --- 任务 2：随机目标点 ---
-    {
+    for (int i = 0; i < taskCount; ++i) {
         agv::model::Point target = gridMap.GetRandomWalkablePoint();
-        std::string taskId = TaskMgr.AddTask(target, agv::model::ActionType::PUT_DOWN);
-        LOG_INFO("[WMS] >>> Order Created: ID=%s, Target=(%d,%d), Type=PUT_DOWN",
-                 taskId.c_str(), target.x, target.y);
-    }
+        agv::model::ActionType action = static_cast<agv::model::ActionType>(i % 3);  // 循环使用不同动作
 
-    // --- 任务 3：随机目标点 ---
-    {
-        agv::model::Point target = gridMap.GetRandomWalkablePoint();
-        std::string taskId = TaskMgr.AddTask(target, agv::model::ActionType::CHARGE);
-        LOG_INFO("[WMS] >>> Order Created: ID=%s, Target=(%d,%d), Type=CHARGE",
-                 taskId.c_str(), target.x, target.y);
+        std::string taskId = TaskMgr.AddTask(target, action);
+        LOG_INFO("[WMS] >>> Order %d/%d Created: ID=%s, Target=(%d,%d)",
+                 i + 1, taskCount, taskId.c_str(), target.x, target.y);
+
+        // 任务间隔 100ms
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     LOG_INFO("[WMS] All test orders dispatched. Entering Monitor Mode...");
@@ -88,6 +78,31 @@ void WmsThreadFunc() {
 
 int main(int argc, char* argv[]) {
 
+    // ========== 解析命令行参数 ==========
+    // 用法: ./AgvServer [config_path] [log_level]
+    // 示例: ./AgvServer ./config.json WARN
+    std::string configPath = "./config.json";
+    LogLevel logLevel = INFO;  // 默认 INFO 级别
+
+    if (argc > 1) {
+        configPath = argv[1];
+    }
+    if (argc > 2) {
+        std::string levelStr = argv[2];
+        if (levelStr == "DEBUG") logLevel = DEBUG;
+        else if (levelStr == "INFO") logLevel = INFO;
+        else if (levelStr == "WARN") logLevel = WARN;
+        else if (levelStr == "ERROR") logLevel = ERROR;
+        else if (levelStr == "FATAL") logLevel = FATAL;
+        else {
+            fprintf(stderr, "Invalid log level: %s. Using INFO.\n", levelStr.c_str());
+            fprintf(stderr, "Valid levels: DEBUG, INFO, WARN, ERROR, FATAL\n");
+        }
+    }
+
+    // 设置日志级别
+    Logger::Instance().SetLevel(logLevel);
+
     // ========== 初始化日志系统 ==========
     // 启用文件日志输出（异步双缓冲，不阻塞主线程）
     // 日志文件路径：./logs/agv_server.log
@@ -98,11 +113,9 @@ int main(int argc, char* argv[]) {
     }
 
     LOG_INFO("========== AGV Server Booting Up ==========");
+    LOG_INFO("Log Level: %s", argv[2] ? argv[2] : "INFO");
 
     // 配置文件
-    std::string configPath = "./config.json";
-    if(argc > 1) configPath = argv[1];
-
     agv::config::ServerConfig cfg;
     if (!agv::config::ConfigLoader::Load(configPath, cfg)) {
         LOG_WARN("Failed to load config from '%s'. Using default hardcoded settings.", configPath.c_str());

@@ -4,7 +4,8 @@ bin/
 lib/
 
 # 忽略草稿
-text/  
+text/ 
+z_markdown/ 
 
 # 忽略 C++ 编译中间文件
 *.o
