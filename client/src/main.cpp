@@ -283,6 +283,7 @@ private:
         j["agvId"] = id_;
         j["password"] = "123456";
         j["version"] = "1.0.0";
+        j["initialPos"] = { {"x", currentPos_.x}, {"y", currentPos_.y} };
         SendPacket(MsgType::LOGIN_REQ, j);
         printf("[AGV-%d] Sent Login.\n", id_);
     }
@@ -323,6 +324,8 @@ private:
         j["allowReplan"] = true;
         SendPacket(MsgType::PATH_REQ, j);
 
+        printf("[AGV-%d] Requesting path: (%d,%d) -> (%d,%d)\n",
+               id_, currentPos_.x, currentPos_.y, end.x, end.y);
     }
 
     // --- 核心逻辑循环 ---
@@ -418,8 +421,18 @@ private:
                         path_.push_back({p["x"], p["y"]});
                     }
                     pathIndex_ = 0;
-                    isWorking_ = true; 
-                    printf("[AGV-%d] Path Planned! Steps: %lu. Starting...\n", id_, path_.size());
+
+                    // 检查路径是否为空（已经在目标位置）
+                    if (path_.empty()) {
+                        // 已经在目标位置，立即完成任务
+                        printf("[AGV-%d] Already at target! Task completed immediately.\n", id_);
+                        SendTaskReport(AgvStatus::IDLE, 1.0);
+                        isWorking_ = false;
+                    } else {
+                        // 有路径，开始执行
+                        isWorking_ = true;
+                        printf("[AGV-%d] Path Planned! Steps: %lu. Starting...\n", id_, path_.size());
+                    }
                 } else {
                     printf("[AGV-%d] Path Planning Failed! Blocked.\n", id_);
                     // RequestNewPath(currentTaskTarget_);
@@ -439,15 +452,15 @@ int main(int argc, char* argv[]) {
     // 启动 3 辆车模拟
     std::vector<std::thread> threads;
     
-    // 定义 3 辆车及其初始位置
+    // 定义 3 辆车及其初始位置（地图范围 10x10，可用区域 (1,1) 到 (8,8)）
     struct AgvConfig {
         int id;
         Point start;
     };
 
     std::vector<AgvConfig> configs = {
-        {101, {0, 0}},   // 101 从左下角出发
-        {102, {10, 0}},  // 102 从右下角出发
+        {101, {1, 1}},   // 101 从左上角出发
+        {102, {8, 1}},   // 102 从右上角出发
         {103, {5, 5}}    // 103 在中间
     };
 

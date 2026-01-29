@@ -134,17 +134,18 @@ void AgvSession::HandlePRequ(const PathRequest& req, int32_t seq) {
    // 【投递到工作线程】
    workerPool_.addtask([self=shared_from_this(), req, seq] () {
         // 求解路径
-        // auto path = WorldMgr.PlanPath(agvId_, req.start, req.end);  直接找不到 Session类的成员变量
         auto path = WorldMgr.PlanPath(self->GetId(), req.start, req.end);
+
+        LOG_INFO("[AgvSession] AGV %d Path Planning: (%d,%d) -> (%d,%d), Result: %lu steps",
+                 self->GetId(), req.start.x, req.start.y, req.end.x, req.end.y, path.size());
 
         // 构造回复
         PathResponse resp;
-        resp.success = true;
+        resp.success = !path.empty();  // 路径为空表示失败
         resp.pathPoints = path;
-        resp.failReason = path.empty() ? "Unreachable" : "";
+        resp.failReason = path.empty() ? "Unreachable or already at target" : "";
 
         // 发送回复
-        // Send(MsgType::PATH_RESP, resp, seq);  单线程版
         self->Send(MsgType::PATH_RESP, resp, seq); // 多线程版
    });
 

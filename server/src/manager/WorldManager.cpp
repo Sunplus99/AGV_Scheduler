@@ -174,15 +174,20 @@ void WorldManager::OnAgvLogin(const model::LoginRequest& req) {
     // --- 静态身份信息
     info.uid = req.agvId;
     info.version = req.version;
+    // --- 初始化状态（从登录请求中获取）
+    info.status = model::AgvStatus::IDLE;
+    info.battery = 100.0;
+    info.currentPos = req.initialPos;  // 使用客户端提供的初始位置
     // --- 运维保活信息
     info.lastHeartbeatTime = myreactor::Timestamp::now().toMilliseconds();
-    
+
     { // 细化写锁作用域
         std::unique_lock<std::shared_mutex> lock(agvMutex_); //写锁
         onlineAgvs_[info.uid] = info;
     }
     // 释放锁之后再打印日志，避免 IO 操作阻塞其他线程
-    LOG_INFO("[WorldManager] AGV %d Logged in at (%d, %d) .", info.uid, info.currentPos.x, info.currentPos.y);
+    LOG_INFO("[WorldManager] AGV %d Logged in at (%d, %d) with status=%d, battery=%.1f",
+             info.uid, info.currentPos.x, info.currentPos.y, (int)info.status, info.battery);
 }
 
 /* “锁内极速计算，锁外从容打印”

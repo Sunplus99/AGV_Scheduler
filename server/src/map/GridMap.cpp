@@ -101,16 +101,27 @@ void GridMap::CreateRandomMap(int w, int h, double obstacleRatio) {
             }
         }
     }
-    
-    // 2. 确保起点 (0,0) 和 这一类关键位置不是墙，防止开局就死
-    grid_[0][0] = 0; 
-    
-    // 3.  加上四周围墙
+
+    // 2. 确保 AGV 起点不是墙（预留安全区域）
+    // 预定义的 AGV 起点位置（与客户端配置对应）
+    std::vector<std::pair<int, int>> safePoints = {
+        {1, 1},   // AGV 101 起点
+        {8, 1},   // AGV 102 起点
+        {5, 5}    // AGV 103 起点
+    };
+
+    for (const auto& [x, y] : safePoints) {
+        if (x >= 0 && x < width_ && y >= 0 && y < height_) {
+            grid_[y][x] = 0;  // 确保起点可通行
+        }
+    }
+
+    // 3. 加上四周围墙
     for(int i=0; i<width_; ++i) {
         grid_[0][i]=1;          // 上墙
         grid_[height_-1][i]=1;  // 下墙
     }
-    for(int i=0; i<height_; ++i) { 
+    for(int i=0; i<height_; ++i) {
         grid_[i][0]=1;          // 左墙
         grid_[i][width_-1]=1;   // 右墙
     }
@@ -142,4 +153,25 @@ void GridMap::PrintMap() {
         std::cout << std::endl;
     }
     std::cout << "===========================" << std::endl;
+}
+// 获取随机可通行点（用于动态任务生成）
+agv::model::Point GridMap::GetRandomWalkablePoint() const {
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+
+    // 最多尝试 1000 次，避免死循环
+    for (int attempt = 0; attempt < 1000; ++attempt) {
+        std::uniform_int_distribution<> disX(1, width_ - 2);  // 避开边界墙
+        std::uniform_int_distribution<> disY(1, height_ - 2);
+
+        int x = disX(gen);
+        int y = disY(gen);
+
+        if (!IsObstacle(x, y)) {
+            return {x, y};
+        }
+    }
+
+    // 如果 1000 次都没找到，返回一个安全的默认点
+    return {1, 1};
 }

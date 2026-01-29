@@ -43,6 +43,9 @@ public:
 
     void PrintMap(); // 在控制台打印预览
 
+    // 获取随机可通行点（用于动态任务生成）
+    agv::model::Point GetRandomWalkablePoint() const;
+
 // private:
     // 解析文件内容的辅助函数
     // bool ParseFile(const std::string& content);

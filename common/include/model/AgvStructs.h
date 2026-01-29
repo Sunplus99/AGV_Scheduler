@@ -180,8 +180,9 @@ struct LoginRequest {
     AgvId agvId;
     std::string password;
     std::string version;
+    Point initialPos = {0, 0};  // 初始位置
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(LoginRequest, agvId, password, version)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(LoginRequest, agvId, password, version, initialPos)
 
 /*
 目前是基于 TCP 长连接的内存状态维护会话（isLogin_），Token 主要是为了预留给未来做断线快速重连或者对接 HTTP 管理端使用的。

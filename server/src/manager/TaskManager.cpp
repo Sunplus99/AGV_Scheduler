@@ -76,7 +76,7 @@ void TaskManager::OnDispatchResult(int agvId, const std::string& taskId, bool su
             auto task = it->second;
 
             // 回滚任务状态
-            task->req.targetAgvId = 0;
+            task->req.targetAgvId = -1;  // -1 表示未分配
 
             // 回滚队列状态 【回到头部】
             pendingTasks_.push_front(task); // 在erase之前，避免迭代器失效
@@ -98,7 +98,7 @@ std::string TaskManager::AddTask(Point targetPos, ActionType targetAct) {
     // 1.构造网络包（任务核心提炼）
     TaskRequest req;
     req.taskId = GenerateTaskId();
-    req.targetAgvId = 0;
+    req.targetAgvId = -1;  // -1 表示未分配
     req.targetPos = targetPos;
     req.targetAct = targetAct;
     req.priority = 1;
@@ -214,13 +214,18 @@ void TaskManager::ExecuteDispatch(
             candiAgvs.push_back(agv);
         }
 
-        if (candiAgvs.empty()) return;
+        if (candiAgvs.empty()) {
+            LOG_WARN("[TaskManager] No candidate AGVs available for dispatch. Total AGVs: %lu", agvsSnapst.size());
+            return;
+        }
 
         // 待调度的任务列表 : pendingTasks 里面的全部被存入 快照， 只要在等待队列里的，都需要执行，无需筛选
 
         // ---------------- 核心调度 ----------------
         // 调用调度算法
+        LOG_INFO("[TaskManager] Dispatching: %lu tasks, %lu candidate AGVs", tasksSnapst.size(), candiAgvs.size());
         auto decisions = currSche->Dispatch(tasksSnapst, candiAgvs);
+        LOG_INFO("[TaskManager] Scheduler returned %lu decisions", decisions.size());
 
         // ---------------- 执行决策 ----------------
         // 锁前准备
@@ -581,6 +586,7 @@ void TaskManager::OnTaskReport(const TaskReport& msg) {
 
         if(taskToRetry) {
             // 恢复状态
+            taskToRetry->req.targetAgvId = -1;  // -1 表示未分配
             taskToRetry->status = AgvStatus::IDLE;
             taskToRetry->progress = 0.0;
 

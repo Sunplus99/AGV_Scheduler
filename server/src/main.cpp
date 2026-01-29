@@ -6,6 +6,7 @@
 #include <thread>
 #include <atomic>
 #include "manager/TaskManager.h"
+#include "manager/WorldManager.h"
 #include "chrono"
 
 //  全局指针，用于在信号函数中访问 AgvServer实例
@@ -39,33 +40,34 @@ void WmsThreadFunc() {
 
     LOG_INFO("[WMS] Start Dispatching Tasks...");
 
-    // 2. 生产任务 (模拟业务系统下单)
-    
-    // --- 场景 A：正常任务 ---
-    // 让 AGV 去坐标 (10, 0) 取货
-    // TaskMgr 会自动生成 TaskID，存入 Pending 队列，并尝试调度
+    // 2. 动态生成任务（从地图中随机选择可通行点作为目标）
+    // 获取地图引用
+    const auto& gridMap = agv::manager::WorldManager::Instance().GetGridMap();
+
+    // --- 任务 1：随机目标点 ---
     {
-        agv::model::Point target = {10, 0};
+        agv::model::Point target = gridMap.GetRandomWalkablePoint();
         std::string taskId = TaskMgr.AddTask(target, agv::model::ActionType::LIFT_UP);
-        LOG_INFO("[WMS] >>> Order Created: ID=%s, Target=(%d,%d), Type=LIFU_UP", taskId.c_str(), target.x, target.y);
+        LOG_INFO("[WMS] >>> Order Created: ID=%s, Target=(%d,%d), Type=LIFT_UP",
+                 taskId.c_str(), target.x, target.y);
     }
 
     // 模拟业务间隔 (500ms)
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-    // --- 场景 B：制造冲突/对向行驶 ---
-    // 让另一辆车去 (0, 0) 送货。如果 101 和 102 在一条线上，这里会触发避障或调度锁
+    // --- 任务 2：随机目标点 ---
     {
-        agv::model::Point target = {0, 0};
-        std::string taskId = TaskMgr.AddTask(target, agv::model::ActionType::LIFT_UP);
-        LOG_INFO("[WMS] >>> Order Created: ID=%s, Target=(%d,%d), Type=DELIVER", taskId.c_str(), target.x, target.y);
+        agv::model::Point target = gridMap.GetRandomWalkablePoint();
+        std::string taskId = TaskMgr.AddTask(target, agv::model::ActionType::PUT_DOWN);
+        LOG_INFO("[WMS] >>> Order Created: ID=%s, Target=(%d,%d), Type=PUT_DOWN",
+                 taskId.c_str(), target.x, target.y);
     }
 
-    // --- 场景 C：第三个任务 ---
+    // --- 任务 3：随机目标点 ---
     {
-        agv::model::Point target = {5, 5};
+        agv::model::Point target = gridMap.GetRandomWalkablePoint();
         std::string taskId = TaskMgr.AddTask(target, agv::model::ActionType::CHARGE);
-        LOG_INFO("[WMS] >>> Order Created: ID=%s, Target=(%d,%d), Type=CHARGE", 
+        LOG_INFO("[WMS] >>> Order Created: ID=%s, Target=(%d,%d), Type=CHARGE",
                  taskId.c_str(), target.x, target.y);
     }
 
@@ -85,6 +87,15 @@ void WmsThreadFunc() {
 
 
 int main(int argc, char* argv[]) {
+
+    // ========== 初始化日志系统 ==========
+    // 启用文件日志输出（异步双缓冲，不阻塞主线程）
+    // 日志文件路径：./logs/agv_server.log
+    if (!Logger::Instance().Open("./logs/agv_server.log")) {
+        fprintf(stderr, "Failed to open log file. Logging to console only.\n");
+    } else {
+        LOG_INFO("Log file opened: ./logs/agv_server.log");
+    }
 
     LOG_INFO("========== AGV Server Booting Up ==========");
 
