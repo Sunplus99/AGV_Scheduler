@@ -30,13 +30,12 @@ target_include_directories(myreactor_static PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/i
 target_link_libraries(myreactor_static pthread)    
 
 
-#[[
 # -------------------------------------------------------
 # 2st.构建测试程序 (tcpepoll.exe)
 # -------------------------------------------------------
 
 # ① 定义可执行文件
-add_executable(tcpepoll 
+add_executable(tcpepoll
     example/tcpepoll.cpp
     example/EchoServer.cpp
 )
@@ -46,5 +45,4 @@ target_link_libraries(tcpepoll myreactor_static)  # ← 链接二进制文件
 
 # ③ 指定自己的头文件（ EchoServer.h）路径
 target_include_directories(tcpepoll PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/example)
-]]
 
