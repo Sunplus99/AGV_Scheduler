@@ -2,6 +2,7 @@
 
 #include "model/AgvStructs.h"
 #include "myreactor/Timestamp.h"
+#include "utils/PerfStats.h"  // 性能统计
 #include <mutex>
 #include <memory>
 #include <atomic>
@@ -73,6 +74,10 @@ public:
 
     // 设置调度算法 , 用基类指针接收
     void SetScheduler(std::shared_ptr<algo::scheduler::ITScheduler>);
+
+    // 获取性能统计
+    const utils::PerfStats& GetTaskStats() const { return taskStats_; }
+    const utils::PerfStats& GetScheduleStats() const { return scheduleStats_; }
 
 private:
     TaskManager();
@@ -150,8 +155,12 @@ private:
     引用成员：必须在构造函数的初始化列表中立即绑定。
     指针成员：可以在构造函数里，也可以在后续任何时候赋值。
     */
-    // 初始化为 nullptr，表示“未就绪”
+    // 初始化为 nullptr，表示"未就绪"
     myreactor::ThreadPool* workerPool_ = nullptr;
+
+    // 性能统计
+    utils::PerfStats taskStats_;      // 任务完成统计
+    utils::PerfStats scheduleStats_;  // 调度延迟统计
 
 };
 

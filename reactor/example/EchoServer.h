@@ -11,6 +11,7 @@
 namespace myreactor{
     class EventLoop;
     class Connection;
+    class Buffer;  // 添加 Buffer 前置声明
 }
 
 class EchoServer{
@@ -30,7 +31,7 @@ public:
     void HandleNewConn(const spConnection& conn);
     void HandleClose(const spConnection& conn);
     void HandleError(const spConnection& conn);
-    void HandleMessage(const spConnection& conn, const std::string& message);
+    void HandleMessage(const spConnection& conn, myreactor::Buffer* buf);  // 修改签名
     void HandleSeCom(const spConnection& conn);
     void HandleConnTimeOut(const spConnection& conn);
     /*

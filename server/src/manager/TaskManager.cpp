@@ -607,6 +607,16 @@ void TaskManager::OnTaskReport(const TaskReport& msg) {
     if(isTaskFinished){
         LOG_INFO("[TaskManager] Task %s COMPLETED by AGV %d. Total Time: %.2fs", msg.taskId.c_str(), msg.agvId, durationSec);
 
+        // 性能统计：记录任务完成
+        taskStats_.incrementCount();
+        taskStats_.recordLatency(durationSec * 1000.0);  // 转换为毫秒
+
+        // 每完成 100 个任务，打印一次统计
+        if (taskStats_.getCount() % 100 == 0) {
+            LOG_INFO("[PERF] Task Statistics: Count=%lu, Avg=%.2fms",
+                     taskStats_.getCount(), taskStats_.getAvgLatency());
+        }
+
         // 有小车空出，下一轮调度
         TryDispatch();
     }

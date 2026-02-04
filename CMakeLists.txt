@@ -83,15 +83,29 @@ file(GLOB_RECURSE CLIENT_SRC "${CMAKE_SOURCE_DIR}/client/src/*.cpp")
 add_executable(AgvSimulator ${CLIENT_SRC})
 
 # 客户端只需要网络库和通用库，不需要服务端的调度逻辑
-target_link_libraries(AgvSimulator 
-    myreactor 
-    agv_common 
-    pthread 
+target_link_libraries(AgvSimulator
+    myreactor
+    agv_common
+    pthread
     dl
 )
 
 # =========================================================
-# 8. 自动化资源部署 (Post-Build Actions)
+# 8. 可执行程序：tcpepoll (Echo Server 性能测试)
+# =========================================================
+add_executable(tcpepoll
+    ${CMAKE_SOURCE_DIR}/reactor/example/tcpepoll.cpp
+    ${CMAKE_SOURCE_DIR}/reactor/example/EchoServer.cpp
+)
+
+# 链接 Reactor 网络库
+target_link_libraries(tcpepoll myreactor pthread)
+
+# 指定 EchoServer.h 的头文件路径
+target_include_directories(tcpepoll PRIVATE ${CMAKE_SOURCE_DIR}/reactor/example)
+
+# =========================================================
+# 9. 自动化资源部署 (Post-Build Actions)
 # =========================================================
 # 编译完成后，自动把配置文件拷贝到 bin 目录，方便直接运行
 file(COPY ${CMAKE_SOURCE_DIR}/server/config/config.json 

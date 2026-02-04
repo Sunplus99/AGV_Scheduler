@@ -1,6 +1,7 @@
 #include "EchoServer.h"
 #include <myreactor/EventLoop.h>
 #include <myreactor/Connection.h>
+#include <myreactor/Buffer.h>  // 添加 Buffer 头文件
 #include <iostream>
 #include <unistd.h>
 #include <sys/syscall.h>   /* For SYS_xxx definitions */
@@ -118,11 +119,14 @@ void EchoServer::HandleError(const spConnection& conn){
 EchoServer -> conn->send(const char* data, size_t len),传递方式：指针 + 长度
     保证接口通用性，send 接口不应该强迫用户必须传 std::string。用户的数据可能在 vector<char> 里，也可能在栈数组 char buf[] 里。接受指针是最灵活的（View 语义）。
 */
-void EchoServer::HandleMessage(const spConnection& conn, const std::string& message){
+void EchoServer::HandleMessage(const spConnection& conn, myreactor::Buffer* buf){
+    // 读取所有数据
+    std::string message = buf->readAllAsString();
+
     // 定义业务逻辑，方便复用
     auto bussinessLogic = [conn, message]{
         // ----计算业务-----
-        std::string replyMsg = "reply: " + message;
+        std::string replyMsg = message;  // Echo Server 直接回显
 
         //发送数据
         // 如果在 IO 线程，sendInLoop 会被直接调用
@@ -132,7 +136,7 @@ void EchoServer::HandleMessage(const spConnection& conn, const std::string& mess
 
     // 逻辑分流
     if(threadpool_.size() > 0) threadpool_.addtask(std::move(bussinessLogic));
-    else 
+    else
         bussinessLogic();
 }
 

@@ -25,6 +25,11 @@ public:
     // // 给 EventLoop/Timer 用 (秒)
     // time_t secondsSinceEpoch() const { return static_cast<time_t>(msSinceEpoch_ / 1000000); }
 
+    // 运算符重载：时间差（返回微秒）
+    int64_t operator-(const Timestamp& rhs) const {
+        return usSinceEpoch_ - rhs.usSinceEpoch_;
+    }
+
     // 辅助工具 (给 TcpServer 判超时用)
     // 返回两个时间戳的时间差(秒)
     // static double timeDifference(Timestamp high, Timestamp low) {

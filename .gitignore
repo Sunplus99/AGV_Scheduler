@@ -5,7 +5,8 @@ lib/
 
 # 忽略草稿
 text/ 
-z_markdown/ 
+z_markdown/
+docs/ 
 
 # 忽略 C++ 编译中间文件
 *.o
