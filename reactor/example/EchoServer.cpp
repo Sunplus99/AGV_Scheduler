@@ -5,6 +5,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <sys/syscall.h>   
+#include <cstring>
 /*
 class EventLoop;
 
@@ -118,23 +119,43 @@ EchoServer -> conn->send(const char* data, size_t len),传递方式：指针 + �
     保证接口通用性，send 接口不应该强迫用户必须传 std::string。用户的数据可能在 vector<char> 里，也可能在栈数组 char buf[] 里。接受指针是最灵活的（View 语义）。
 */
 void EchoServer::HandleMessage(const spConnection& conn, myreactor::Buffer* buf){
-    
-    std::string message = buf->readAllAsString();
 
-    auto bussinessLogic = [conn, message]{
-        // ----计算业务-----
-        std::string replyMsg = message;  // Echo Server 直接回显
+    // 协议处理：循环解包，处理粘包情况
+    // 协议格式：[4字节长度] + [消息体]
+    while (buf->size() >= 4) {
+        // 1. 读取消息长度（不移动读指针）
+        int32_t msglen = buf->peekInt32();
 
-        //发送数据
-        // 如果在 IO 线程，sendInLoop 会被直接调用
-        // 如果在 Worker 线程，会通过 runInLoop 转发回 IO 线程
-        conn->send(replyMsg.data(), replyMsg.size());
-    };
+        // 2. 检查是否收到完整消息（处理分包）
+        if (buf->size() < static_cast<size_t>(4 + msglen)) {
+            break;  // 数据不完整，等待下次接收
+        }
 
-    // 逻辑分流
-    if(threadpool_.size() > 0) threadpool_.addtask(std::move(bussinessLogic));
-    else
-        bussinessLogic();
+        // 3. 跳过长度头
+        buf->erase(4);
+
+        // 4. 读取消息体
+        std::string message = buf->readAsString(msglen);
+
+        // 5. 业务逻辑：回显
+        auto bussinessLogic = [conn, message, msglen]{
+            // 重新打包：[4字节长度] + [消息体]
+            std::string response;
+            response.resize(4 + msglen);
+            memcpy(&response[0], &msglen, 4);              // 写入长度头
+            memcpy(&response[4], message.data(), msglen);  // 写入消息体
+
+            // 发送数据
+            // 如果在 IO 线程，sendInLoop 会被直接调用
+            // 如果在 Worker 线程，会通过 runInLoop 转发回 IO 线程
+            conn->send(response.data(), response.size());
+        };
+
+        // 逻辑分流
+        if(threadpool_.size() > 0) threadpool_.addtask(std::move(bussinessLogic));
+        else
+            bussinessLogic();
+    }
 }
 
 

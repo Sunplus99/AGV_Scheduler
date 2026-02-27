@@ -102,7 +102,49 @@ target_link_libraries(tcpepoll myreactor pthread)
 target_include_directories(tcpepoll PRIVATE ${CMAKE_SOURCE_DIR}/reactor/example)
 
 # =========================================================
-# 9. 自动化资源部署 (Post-Build Actions)
+# 9. Reactor 性能测试程序 (Benchmark Tools)
+# =========================================================
+# 设置测试程序输出目录
+set(BENCHMARK_REACTOR_OUTPUT_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/benchmark/reactor)
+
+# 延迟测试
+add_executable(test_latency
+    ${CMAKE_SOURCE_DIR}/benchmark/reactor/test_latency.cpp
+)
+target_link_libraries(test_latency pthread)
+set_target_properties(test_latency PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${BENCHMARK_REACTOR_OUTPUT_DIR}
+)
+
+# QPS 测试（小包）
+add_executable(test_qps
+    ${CMAKE_SOURCE_DIR}/benchmark/reactor/test_qps.cpp
+)
+target_link_libraries(test_qps pthread)
+set_target_properties(test_qps PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${BENCHMARK_REACTOR_OUTPUT_DIR}
+)
+
+# 吞吐量测试（大包）
+add_executable(test_throughput
+    ${CMAKE_SOURCE_DIR}/benchmark/reactor/test_throughput.cpp
+)
+target_link_libraries(test_throughput pthread)
+set_target_properties(test_throughput PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${BENCHMARK_REACTOR_OUTPUT_DIR}
+)
+
+# 并发连接测试（C10K）
+add_executable(test_concurrency
+    ${CMAKE_SOURCE_DIR}/benchmark/reactor/test_concurrency.cpp
+)
+target_link_libraries(test_concurrency pthread)
+set_target_properties(test_concurrency PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${BENCHMARK_REACTOR_OUTPUT_DIR}
+)
+
+# =========================================================
+# 10. 自动化资源部署 (Post-Build Actions)
 # =========================================================
 # 编译完成后，自动把配置文件拷贝到 bin 目录，方便直接运行
 file(COPY ${CMAKE_SOURCE_DIR}/server/config/config.json 
@@ -114,83 +156,3 @@ file(COPY ${CMAKE_SOURCE_DIR}/server/maps
 
 message(STATUS "Build Configured. Output Path: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
-
-
-
-
-
-
-
-# cmake_minimum_required(VERSION 3.10)
-# project(AGV_Scheduler)
-
-# # 1. 设置 C++ 标准
-# set(CMAKE_CXX_STANDARD 17)
-# set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# # 2. 输出路径设置 (让编译出来的程序整齐一点)
-# set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
-# set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/lib)
-# set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
-
-# # =========================================================
-# # 3. 核心：头文件路径 (Include Paths)
-# # 只要这里写全了，代码里 #include 也就不会报错了
-# # =========================================================
-# include_directories(
-#     ${CMAKE_SOURCE_DIR}/common/include      # 对应 #include "utils/Logger.h" 等
-#     ${CMAKE_SOURCE_DIR}/reactor/include     # 对应 #include "myreactor/TcpServer.h"
-#     ${CMAKE_SOURCE_DIR}/server/include      # 对应 #include "session/AgvManager.h"
-# )
-
-# # =========================================================
-# # 4. 模块一：Common 库 (工具类)
-# # =========================================================
-# # 搜集 common/src 下的所有 .cpp
-# file(GLOB_RECURSE COMMON_SRC "${CMAKE_SOURCE_DIR}/common/src/*.cpp")
-# # 生成静态库 libagv_common.a
-# add_library(agv_common STATIC ${COMMON_SRC})
-
-# # =========================================================
-# # 5. 模块二：Reactor 库 (网络库)
-# # =========================================================
-# # 搜集 reactor/src 下的所有 .cpp
-# file(GLOB_RECURSE REACTOR_SRC "${CMAKE_SOURCE_DIR}/reactor/src/*.cpp")
-# # 生成静态库 libmyreactor.a
-# add_library(myreactor STATIC ${REACTOR_SRC})
-# # 网络库通常依赖 pthread
-# target_link_libraries(myreactor pthread)
-
-# # =========================================================
-# # 6. 模块三：Server 业务逻辑 (你的核心代码)
-# # =========================================================
-# # 搜集 server/src 下的所有 .cpp (包括 manager, session, algo 等子文件夹)
-# # GLOB_RECURSE 会自动钻进子目录去找文件，非常适合你现在的结构
-# file(GLOB_RECURSE SERVER_SRC "${CMAKE_SOURCE_DIR}/server/src/*.cpp")
-
-# # 生成静态库 libagv_logic.a (先把业务编成库，方便管理)
-# add_library(agv_logic STATIC ${SERVER_SRC})
-# # 业务库依赖网络库和工具库
-# target_link_libraries(agv_logic myreactor agv_common)
-
-# # =========================================================
-# # 7. 最终产物：可执行程序
-# # =========================================================
-# add_executable(AgvServer main.cpp)
-
-# # 链接所有依赖
-# target_link_libraries(AgvServer 
-#     agv_logic     # 你的业务
-#     myreactor     # 网络库
-#     agv_common    # 工具库
-#     pthread       # 线程支持
-#     dl            # 动态加载支持(Linux保险起见)
-# )
-
-# # =========================================================
-# # (可选) 客户端测试程序
-# # 如果你想顺便把 client 目录下的也编译了，可以解开下面注释
-# # =========================================================
-# file(GLOB_RECURSE CLIENT_SRC "${CMAKE_SOURCE_DIR}/client/*.cpp")
-# add_executable(AgvClient ${CLIENT_SRC})
-# target_link_libraries(AgvClient myreactor agv_common pthread)
