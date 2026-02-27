@@ -1,10 +1,10 @@
 #include "EchoServer.h"
 #include <myreactor/EventLoop.h>
 #include <myreactor/Connection.h>
-#include <myreactor/Buffer.h>  // 添加 Buffer 头文件
+#include <myreactor/Buffer.h>  
 #include <iostream>
 #include <unistd.h>
-#include <sys/syscall.h>   /* For SYS_xxx definitions */
+#include <sys/syscall.h>   
 /*
 class EventLoop;
 
@@ -73,8 +73,6 @@ void EchoServer::Start(){
 }
 
 /*
-显式 Stop()：负责业务逻辑上的“体面下班”（停止接收新客，处理完手头工作）。
-析构 stop()：负责资源管理上的“安全回收”（防止内存泄露，防止 Core Dump）。
 幂等性检查：负责协调两者，避免重复操作。
 */
 void EchoServer::Stop(){
@@ -120,10 +118,9 @@ EchoServer -> conn->send(const char* data, size_t len),传递方式：指针 + �
     保证接口通用性，send 接口不应该强迫用户必须传 std::string。用户的数据可能在 vector<char> 里，也可能在栈数组 char buf[] 里。接受指针是最灵活的（View 语义）。
 */
 void EchoServer::HandleMessage(const spConnection& conn, myreactor::Buffer* buf){
-    // 读取所有数据
+    
     std::string message = buf->readAllAsString();
 
-    // 定义业务逻辑，方便复用
     auto bussinessLogic = [conn, message]{
         // ----计算业务-----
         std::string replyMsg = message;  // Echo Server 直接回显
@@ -140,27 +137,6 @@ void EchoServer::HandleMessage(const spConnection& conn, myreactor::Buffer* buf)
         bussinessLogic();
 }
 
-
-/*
-// HandleMessage将“计算任务”提交到工作线程池
-void EchoServer::HandleMessage(int connfd, const std::string& message){
-
-//////////////////        threadpool_.addtask 是异步的。 你把任务扔进去的一瞬间，函数就返回了，工作线程可能还没醒过来呢。主线程紧接着去发送，自然发了个寂寞。你需要的是回调（Callback）或者任务投递机制。                        ////////////////////
-    
-    threadpool_.addtask(std::bind(&EchoServer::onMessage, this, message));
-    
-    // 调用TcpServer的发送接口 （IO层）
-    std::cout << "EchoServer"<< syscall(SYS_gettid) <<" reply message." << std::endl;
-    bool sendOk = tcpserver_.sendToClient(connfd, replyMsg.data(), replyMsg.size());
-    if(!sendOk) std::cout << "EchoServer: 发送数据到fd="<< connfd << "失败" << std::endl;
-}
-
-std::string EchoServer::onMessage(const std::string& message){
-    std::cout << "EchoServer"<< syscall(SYS_gettid) <<" compute message." << std::endl;
-    std::string replyMsg = "reply: " + message;
-    return replyMsg;
-}
-*/
 
 // 这是现代 C++ 最优雅、语义最清晰的写法。它直接告诉编译器：这个变量可能不被使用，别报警。
 void EchoServer::HandleSeCom([[maybe_unused]]const spConnection& conn){

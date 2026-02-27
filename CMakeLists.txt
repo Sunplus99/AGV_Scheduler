@@ -18,7 +18,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 # =========================================================
 # 2. 全局头文件路径 (Include Paths)
 # =========================================================
-# 这样代码里写 #include "utils/Logger.h" 或 "myreactor/TcpServer.h" 就能找到了
 include_directories(
     ${CMAKE_SOURCE_DIR}/common/include
     ${CMAKE_SOURCE_DIR}/reactor/include
@@ -28,6 +27,7 @@ include_directories(
 # =========================================================
 # 3. 模块一：Common 库 (协议、工具、模型)
 # =========================================================
+# GLOB_RECURSE：递归匹配文件
 file(GLOB_RECURSE COMMON_SRC "${CMAKE_SOURCE_DIR}/common/src/*.cpp")
 add_library(agv_common STATIC ${COMMON_SRC})
 
@@ -42,19 +42,17 @@ target_link_libraries(myreactor pthread)
 # =========================================================
 # 5. 模块三：Server 业务逻辑库 (核心逻辑，不含 main)
 # =========================================================
-# 1. 递归搜集 server/src 下所有 .cpp (包含 algo, manager, session 等子目录)
 file(GLOB_RECURSE SERVER_SRC "${CMAKE_SOURCE_DIR}/server/src/*.cpp")
 
-# 2. 【关键步骤】定位 main.cpp
+# 定位 main.cpp
 set(SERVER_MAIN "${CMAKE_SOURCE_DIR}/server/src/main.cpp")
 
-# 3. 【关键步骤】从源文件列表中剔除 main.cpp
-# 这样生成的 libagv_logic.a 纯粹是业务逻辑，不包含入口函数，方便后续单元测试链接
+# 从源文件列表中剔除 main.cpp
 if(EXISTS ${SERVER_MAIN})
     list(REMOVE_ITEM SERVER_SRC ${SERVER_MAIN})
 endif()
 
-# 4. 生成业务逻辑静态库
+# 生成业务逻辑静态库
 add_library(agv_logic STATIC ${SERVER_SRC})
 # 业务层依赖：网络库 + 通用库
 target_link_libraries(agv_logic myreactor agv_common)
@@ -62,7 +60,6 @@ target_link_libraries(agv_logic myreactor agv_common)
 # =========================================================
 # 6. 可执行程序：AgvServer (服务端)
 # =========================================================
-# 使用刚才单独摘出来的 SERVER_MAIN
 add_executable(AgvServer ${SERVER_MAIN})
 
 # 链接依赖链：Main -> Logic -> Reactor -> Common -> System Libs
@@ -77,7 +74,6 @@ target_link_libraries(AgvServer
 # =========================================================
 # 7. 可执行程序：AgvSimulator (客户端模拟器)
 # =========================================================
-# 搜集 client/src 下的代码
 file(GLOB_RECURSE CLIENT_SRC "${CMAKE_SOURCE_DIR}/client/src/*.cpp")
 
 add_executable(AgvSimulator ${CLIENT_SRC})
@@ -87,8 +83,9 @@ target_link_libraries(AgvSimulator
     myreactor
     agv_common
     pthread
-    dl
+    dl    
 )
+# dl: libdl（Dynamic Linking Library）的缩写，提供动态加载共享库的功能。未来需要插件系统,习惯保留
 
 # =========================================================
 # 8. 可执行程序：tcpepoll (Echo Server 性能测试)
@@ -112,12 +109,6 @@ file(COPY ${CMAKE_SOURCE_DIR}/server/config/config.json
      DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
 # 自动拷贝地图文件夹
-file(COPY ${CMAKE_SOURCE_DIR}/server/maps 
-     DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/server) 
-     # 注意：这里会生成 bin/server/maps，如果代码里写的是 "./maps/..." 
-     # 你可能需要调整代码路径或者这里的 COPY 目标路径
-     # 假设你代码里读取路径是 "./server/maps/default_map.txt" 或者 "./maps/..."
-     # 通常为了简单，直接拷到 bin 根目录下：
 file(COPY ${CMAKE_SOURCE_DIR}/server/maps 
      DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 

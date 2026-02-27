@@ -79,16 +79,13 @@ void WmsThreadFunc() {
 int main(int argc, char* argv[]) {
 
     // ========== 解析命令行参数 ==========
-    // 用法: ./AgvServer [config_path] [log_level]
-    // 示例: ./AgvServer ./config.json WARN
-    std::string configPath = "./config.json";
+    // 用法: ./AgvServer  [log_level]
+    // 示例: ./AgvServer WARN
+    std::string configPath = "./config.json";  // 相对于当前工作目录,在 bin/ 目录运行，读取的是 bin/config.json
     LogLevel logLevel = INFO;  // 默认 INFO 级别
 
     if (argc > 1) {
-        configPath = argv[1];
-    }
-    if (argc > 2) {
-        std::string levelStr = argv[2];
+        std::string levelStr = argv[1];
         if (levelStr == "DEBUG") logLevel = DEBUG;
         else if (levelStr == "INFO") logLevel = INFO;
         else if (levelStr == "WARN") logLevel = WARN;
@@ -99,7 +96,7 @@ int main(int argc, char* argv[]) {
             fprintf(stderr, "Valid levels: DEBUG, INFO, WARN, ERROR, FATAL\n");
         }
     }
-
+    
     // 设置日志级别
     Logger::Instance().SetLevel(logLevel);
 
@@ -113,7 +110,7 @@ int main(int argc, char* argv[]) {
     }
 
     LOG_INFO("========== AGV Server Booting Up ==========");
-    LOG_INFO("Log Level: %s", argv[2] ? argv[2] : "INFO");
+    LOG_INFO("Log Level: %s", argc > 1 ? argv[1] : "INFO");
 
     // 配置文件
     agv::config::ServerConfig cfg;

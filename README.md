@@ -40,7 +40,7 @@ cmake .. && make -j$(nproc)
 
 # 2. 运行服务器（WARN 级别，减少日志）
 cd ../bin
-./AgvServer ./config.json WARN
+./AgvServer WARN
 
 # 3. 运行客户端（10 辆 AGV）
 ./AgvSimulator 10
@@ -49,9 +49,10 @@ cd ../bin
 ### 日志级别
 
 ```bash
-./AgvServer [config_path] [log_level]
+./AgvServer [log_level]
 
 # 级别：DEBUG < INFO < WARN < ERROR < FATAL
+# 默认：INFO
 # 推荐演示：WARN（只显示重要信息）
 ```
 

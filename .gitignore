@@ -4,9 +4,11 @@ bin/
 lib/
 
 # 忽略草稿
-text/ 
+z_text/ 
 z_markdown/
-docs/ 
+z_docs/ 
+z_pre/
+
 
 # 忽略 C++ 编译中间文件
 *.o
