@@ -8,6 +8,7 @@ z_text/
 z_markdown/
 z_docs/ 
 z_pre/
+z_test/
 
 
 # 忽略 C++ 编译中间文件
