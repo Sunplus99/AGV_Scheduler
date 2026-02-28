@@ -63,7 +63,7 @@ EchoServer::EchoServer(const std::string& ip, const uint16_t port, int iothreadn
         std::bind(&EchoServer::HandleConnTimeOut, this, std::placeholders::_1)
     );
 
-    tcpserver_.setTimeOut(20);
+    tcpserver_.setTimeOut(600);
 
 }
 

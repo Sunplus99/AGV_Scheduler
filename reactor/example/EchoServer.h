@@ -19,7 +19,7 @@ private:
     using spConnection = std::shared_ptr<myreactor::Connection>;
 
 public:
-    EchoServer(const std::string& ip, const uint16_t port, int iothreadnum=2, int workthreadnum = 2);
+    EchoServer(const std::string& ip, const uint16_t port, int iothreadnum=4, int workthreadnum = 8);
     ~EchoServer();
 
     void Start();

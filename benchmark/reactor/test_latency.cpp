@@ -11,19 +11,22 @@
 #include <cmath>
 #include <iomanip>
 
-const char* SERVER_IP = "192.168.184.128"; // 【请确保 IP 正确】
+// 配置目标服务器
+const char* SERVER_IP = "192.168.184.128"; 
 const int SERVER_PORT = 5005;
 const int REQUESTS_COUNT = 10000; 
 const int MSG_BODY_SIZE = 64; 
 
-// 辅助函数：打包协议 (4字节长度 + 内容)
+// 打包协议 (4字节长度 + 内容)
 std::string pack_message(const std::string& body) {
     int len = body.size();
     std::string pkg;
     pkg.resize(4 + len);
     
-    // 写入头部 (小端序/本机序，注意 Server 端的解析方式要一致)
-    memcpy(&pkg[0], &len, 4);
+    int msgLen_net = htonl(len);
+
+    // 写入头部
+    memcpy(&pkg[0], &msgLen_net, 4);
     // 写入包体
     memcpy(&pkg[4], body.data(), len);
     
@@ -31,13 +34,15 @@ std::string pack_message(const std::string& body) {
 }
 
 int main() {
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(SERVER_PORT);
     inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr);
 
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    
     if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("Connect failed");
         return -1;
@@ -64,7 +69,7 @@ int main() {
         }
 
         // 2. 接收 (Server 回射的数据也应该有头，我们这里简单处理，只要收到数据就算结束)
-        // 真实场景应该循环接收直到收满预期长度，但延迟测试为了快，通常读到响应即可
+        // 真实场景应该循环接收直到收满预期长度，但延迟测试为了快，读到响应即可
         ssize_t n = recv(sock, recv_buf.data(), recv_buf.size(), 0);
 
         auto end = std::chrono::high_resolution_clock::now();

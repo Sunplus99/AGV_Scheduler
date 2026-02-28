@@ -10,21 +10,21 @@
 #include <chrono>
 
 // 配置目标服务器
-const char* SERVER_IP = "192.168.184.128"; // 【请修改为你的 Server IP】
+const char* SERVER_IP = "192.168.184.128"; 
 const int SERVER_PORT = 5005;
 const int CONNS_COUNT = 10000;             // 目标连接数
 
 void set_resource_limit() {
     struct rlimit rl;
     // 获取当前限制
-    if (getrlimit(RLIMIT_NOFILE, &rl) < 0) {
+    if (getrlimit(RLIMIT_NOFILE, &rl) < 0) {     // Resource LIMIT for Number Of FILE descriptors
         perror("getrlimit");
         exit(1);
     }
 
     std::cout << "Original Limit: " << rl.rlim_cur << std::endl;
 
-    // 设置为最大值 (或者至少比 CONNS_COUNT 大)
+    // 设置为最大值 
     rl.rlim_cur = rl.rlim_max = 65535;
     
     if (setrlimit(RLIMIT_NOFILE, &rl) < 0) {
@@ -36,7 +36,7 @@ void set_resource_limit() {
 }
 
 int main(int argc, char* argv[]) {
-    // 1. 先把系统限制提上去，否则连到 1024 就崩了
+    
     set_resource_limit();
 
     struct sockaddr_in server_addr;
@@ -69,7 +69,7 @@ int main(int argc, char* argv[]) {
             break; // 连接失败通常意味着严重问题，直接退出循环
         }
 
-        // 保存 socket fd，防止被关闭
+        // 保存 socket fd，统一管理
         connections.push_back(sock);
 
         if ((i + 1) % 1000 == 0) {

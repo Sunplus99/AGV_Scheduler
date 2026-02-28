@@ -16,6 +16,29 @@ std::atomic<long> g_request_count(0);
 // 控制测试运行的开关
 volatile bool g_running = true;
 
+// 封装一个保证读满 N 字节的函数
+ssize_t readn(int fd, void *vptr, size_t n) {
+    size_t  nleft;
+    ssize_t nread;
+    char   *ptr;
+
+    ptr = (char*)vptr;  // 转换为char*，方便字节级操作
+    nleft = n;
+    while (nleft > 0) {
+        if ( (nread = recv(fd, ptr, nleft, 0)) < 0) {
+            if (errno == EINTR)
+                nread = 0;      /* and call read() again */
+            else
+                return -1;
+        } else if (nread == 0)
+            break;              /* EOF */
+
+        nleft -= nread;
+        ptr   += nread;
+    }
+    return (n - nleft);         /* return >= 0 */
+}
+
 // 模拟单个客户端线程的行为
 void clientThreadFunc(const char* ip, int port, int threadId) {
     int sockfd;
@@ -45,24 +68,23 @@ void clientThreadFunc(const char* ip, int port, int threadId) {
     const char* msg = "Benchmark Test Message";
     int msgLen = strlen(msg);
     
+    int msgLen_net = htonl(msgLen); // 主机序→网络序
     // 拼装协议头 (4字节长度) + 协议体
-    // 注意：这里要确保和服务端协议一致
-    memcpy(sendBuf, &msgLen, 4);            // 头部：长度
-    memcpy(sendBuf + 4, msg, msgLen);       // 包体：内容
+    memcpy(sendBuf, &msgLen_net, 4);            
+    memcpy(sendBuf + 4, msg, msgLen);      
     int totalLen = 4 + msgLen;
 
     // 3. 疯狂循环发送
     while (g_running) {
         // 发送数据
         if (send(sockfd, sendBuf, totalLen, 0) <= 0) {
-            break; // 发送失败（如服务端断开）则退出
+            break; 
         }
 
-        // 接收响应 (你的服务端是 Echo 吗？如果是，必须收完才能发下一次，否则会粘包)
-        // 假设服务端也是回传 4字节头 + 内容
         int len = 0;
-        if (recv(sockfd, &len, 4, 0) <= 0) break; // 先读头部
-        if (recv(sockfd, recvBuf, len, 0) <= 0) break; // 再读包体
+        if (readn(sockfd, &len, 4) != 4) break;
+        if (len < 0 || len > 1024) break; 
+        if (readn(sockfd, recvBuf, len) != len) break;
 
         // 成功完成一次 Ping-Pong，计数器 +1
         g_request_count++;
@@ -73,8 +95,8 @@ void clientThreadFunc(const char* ip, int port, int threadId) {
 
 int main(int argc, char *argv[]) {
     if (argc != 4) {
-        printf("usage: ./benchmark ip port thread_count\n");
-        printf("example: ./benchmark 192.168.150.128 5085 100\n");
+        printf("usage: ./test_qps ip port thread_count\n");
+        printf("example: ./test_qps 192.168.184.128 5005 100\n");
         return -1;
     }
 

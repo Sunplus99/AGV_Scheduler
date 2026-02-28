@@ -18,13 +18,12 @@ std::atomic<long> g_request_count(0);
 volatile bool g_running = true;
 
 // 封装一个保证读满 N 字节的函数
-// 因为是大包(10KB)，TCP 可能会分片到达，不能假设一次 recv 就读完
 ssize_t readn(int fd, void *vptr, size_t n) {
     size_t  nleft;
     ssize_t nread;
     char   *ptr;
 
-    ptr = (char*)vptr;
+    ptr = (char*)vptr;  // 转换为char*，方便字节级操作
     nleft = n;
     while (nleft > 0) {
         if ( (nread = recv(fd, ptr, nleft, 0)) < 0) {
@@ -70,10 +69,10 @@ void clientThreadFunc(const char* ip, int port, int threadId) {
     // 准备发送缓冲区：头部(4字节) + 包体
     std::vector<char> sendBuf(4 + msgLen);
     
-    // 拼装协议头 (注意：这里直接 copy int，需确保两端端序一致，本地测试没问题)
-    memcpy(sendBuf.data(), &msgLen, 4);
+    int msgLen_net = htonl(msgLen); // 主机序→网络序
+    // 拼装协议头 (4字节长度) + 协议体
+    memcpy(sendBuf.data(), &msgLen_net, 4); 
     memcpy(sendBuf.data() + 4, bigMsg.data(), msgLen);
-    
     int totalLen = 4 + msgLen;
 
     // 准备接收缓冲区 (复用一个足够大的 buffer)
@@ -81,33 +80,19 @@ void clientThreadFunc(const char* ip, int port, int threadId) {
 
     // 3. 疯狂循环发送
     while (g_running) {
-        // [修复点 1] 使用 sendBuf.data() 获取底层指针
-        // 发送整个包（Header + Body）
-        //哪怕是发送，大数据量也建议循环写，但 send 缓冲区通常足够大，这里简化处理
+        // 发送数据
         if (send(sockfd, sendBuf.data(), totalLen, 0) <= 0) {
             break; 
         }
 
-        // 接收响应 
-        // 假设服务端也是回传 4字节头 + 原样内容
         int len = 0;
+        if (readn(sockfd, &len, 4) != 4) break;
         
-        // A. 先读头部 4 字节
-        if (readn(sockfd, &len, 4) != 4) {
-            break;
-        }
-
         // 检查长度是否合理(防止发太猛服务端返回乱序或异常)
-        if (len > 1024 * 100 || len < 0) { 
-             break; 
-        }
+        if (len > 1024 * 100 || len < 0) break; 
 
-        // B. 再读包体 (使用循环读取 readn，确保读够 len 字节)
-        // [修复点 2] 使用 recvBuf.data() 
-        if (readn(sockfd, recvBuf.data(), len) != len) {
-            break;
-        }
-
+        if (readn(sockfd, recvBuf.data(), len) != len) break;
+        
         // 成功完成一次大包 Ping-Pong
         g_request_count++;
     }
@@ -117,8 +102,8 @@ void clientThreadFunc(const char* ip, int port, int threadId) {
 
 int main(int argc, char *argv[]) {
     if (argc != 4) {
-        printf("usage: ./big_client ip port thread_count\n");
-        printf("example: ./big_client 192.168.150.128 5085 1000\n");
+        printf("usage: ./test_thriughtput ip port thread_count\n");
+        printf("example: ./test_thriughtput 192.168.184.128 5085 20\n");
         return -1;
     }
 
