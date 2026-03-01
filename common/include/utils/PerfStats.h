@@ -27,8 +27,7 @@ public:
 
         // 累加总延迟（用于计算平均值）
         double expected = totalLatency_.load(std::memory_order_relaxed);
-        while (!totalLatency_.compare_exchange_weak(expected, expected + latencyMs,
-                                                     std::memory_order_relaxed)) {
+        while (!totalLatency_.compare_exchange_weak(expected, expected + latencyMs,std::memory_order_relaxed)) {
             // CAS 失败则重试
         }
 

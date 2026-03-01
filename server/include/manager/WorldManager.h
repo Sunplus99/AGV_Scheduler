@@ -6,6 +6,7 @@
 #include "algo/planner/IPPlanner.h"
 #include "model/AgvStructs.h"
 #include "map/GridMap.h"
+#include "utils/PerfStats.h"
 #include <memory>
 
 /*
@@ -123,6 +124,12 @@ private:
 
     // 算法接口指针
     std::shared_ptr<algo::planner::IPPlanner> planner_;
+
+    // 路径规划延迟统计
+    utils::PerfStats planStats_;
+
+public:
+    const utils::PerfStats& GetPlanStats() const { return planStats_; }
 };
 
 }

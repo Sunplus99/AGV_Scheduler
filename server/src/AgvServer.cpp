@@ -166,6 +166,21 @@ void AgvServer::Start() {
 
 void AgvServer::Stop() {
     LOG_INFO("AgvServer Stopping...");
+
+    // ===== 性能统计汇总 =====
+    if (qpsStarted_.load(std::memory_order_relaxed)) {
+        double elapsedSec = (myreactor::Timestamp::now().usSinceEpoch()
+                             - qpsStartTime_.usSinceEpoch()) / 1000000.0;
+        uint64_t total = totalRequests_.load(std::memory_order_relaxed);
+        double qps = (elapsedSec > 0) ? (total / elapsedSec) : 0;
+        LOG_INFO("[PERF] ========== Performance Report ==========");
+        LOG_INFO("[PERF] QPS: Total=%lu, Elapsed=%.1fs, QPS=%.1f req/s", total, elapsedSec, qps);
+    }
+    TaskMgr.GetScheduleStats().printStats("Scheduling Latency");
+    TaskMgr.GetTaskStats().printStats("Task Completion");
+    WorldMgr.GetPlanStats().printStats("Path Planning Latency");
+    LOG_INFO("[PERF] ==========================================");
+
     tcpServer_->stop();  // 先切断流量入口
     workerPool_->stop(); // 等待现有任务处理完
     LOG_INFO("AgvServer Stopped.");
@@ -180,6 +195,12 @@ void AgvServer::Stop() {
     未来如果想加 全局流量统计（每秒收了多少字节）、全局日志（收到包了，打印个 Debug）、或者 IP 黑名单过滤（在交给 Dispatcher 解析前先拦截），这里是绝佳的位置。
 */
 void AgvServer::OnTcpMessage(const spConnection& conn, myreactor::Buffer* buf){
+    // 第一个请求到达时开始计时，排除预热期干扰
+    if (!qpsStarted_.exchange(true, std::memory_order_relaxed)) {
+        qpsStartTime_ = myreactor::Timestamp::now();
+        LOG_INFO("[PERF] QPS timing started (first request received).");
+    }
+    totalRequests_.fetch_add(1, std::memory_order_relaxed);
     disPatcher_.dispatch(conn, buf);
 }
 

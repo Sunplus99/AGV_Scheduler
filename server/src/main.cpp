@@ -63,6 +63,9 @@ void WmsThreadFunc() {
 
     LOG_INFO("[WMS] All test orders dispatched. Entering Monitor Mode...");
 
+    // 告知 TaskManager 总任务数，用于判断"全部完成"时自动打印统计
+    TaskMgr.SetTotalTaskCount(static_cast<uint64_t>(taskCount));
+
     // 3. 监控阶段
     // 保持线程存活，防止主进程退出。这里可以打印一些系统状态监控日志。
     while(g_running) {

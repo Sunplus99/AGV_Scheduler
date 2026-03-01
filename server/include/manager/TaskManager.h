@@ -79,6 +79,9 @@ public:
     const utils::PerfStats& GetTaskStats() const { return taskStats_; }
     const utils::PerfStats& GetScheduleStats() const { return scheduleStats_; }
 
+    // WMS 发完所有任务后调用，告知总任务数，用于判断"全部完成"
+    void SetTotalTaskCount(uint64_t total);
+
 private:
     TaskManager();
     ~TaskManager() = default;
@@ -161,6 +164,9 @@ private:
     // 性能统计
     utils::PerfStats taskStats_;      // 任务完成统计
     utils::PerfStats scheduleStats_;  // 调度延迟统计
+
+    // 用于判断"全部任务完成"：WMS 发完任务后设置，0 表示未设置
+    std::atomic<uint64_t> totalTaskCount_{0};
 
 };
 

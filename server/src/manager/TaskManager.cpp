@@ -94,6 +94,11 @@ void TaskManager::OnDispatchResult(int agvId, const std::string& taskId, bool su
     }
 }
 
+void TaskManager::SetTotalTaskCount(uint64_t total) {
+    totalTaskCount_.store(total, std::memory_order_relaxed);
+    LOG_INFO("[TaskManager] Total task count set to %lu.", total);
+}
+
 std::string TaskManager::AddTask(Point targetPos, ActionType targetAct) {
     // 1.构造网络包（任务核心提炼）
     TaskRequest req;
@@ -301,6 +306,11 @@ void TaskManager::ExecuteDispatch(
             task->req.targetAgvId = agvId; // 更新 task 状态
             runningTasks_[agvId] = task;
             logs.push_back({LogAction::DISPATCH_SUCCESS, task->req.taskId, agvId, dec.Distance});
+
+            // 记录调度延迟：从任务创建（AddTask入队）到成功下发的时间
+            double schedMs = (myreactor::Timestamp::now().usSinceEpoch()
+                              - task->createTime.usSinceEpoch()) / 1000.0;
+            scheduleStats_.recordLatency(schedMs);
             
             hasAssignment = true;
         }
@@ -615,6 +625,16 @@ void TaskManager::OnTaskReport(const TaskReport& msg) {
         if (taskStats_.getCount() % 100 == 0) {
             LOG_INFO("[PERF] Task Statistics: Count=%lu, Avg=%.2fms",
                      taskStats_.getCount(), taskStats_.getAvgLatency());
+        }
+
+        // 检查是否所有任务都完成了（WMS 已设置总数 且 完成数 == 总数）
+        uint64_t total = totalTaskCount_.load(std::memory_order_relaxed);
+        if (total > 0 && taskStats_.getCount() >= total) {
+            LOG_INFO("[PERF] ========== All Tasks Completed! Performance Report ==========");
+            scheduleStats_.printStats("Scheduling Latency");
+            taskStats_.printStats("Task Completion");
+            WorldMgr.GetPlanStats().printStats("Path Planning Latency");
+            LOG_INFO("[PERF] =============================================================");
         }
 
         // 有小车空出，下一轮调度

@@ -113,10 +113,13 @@ std::vector<Point> WorldManager::PlanPath(int agvId, Point start, Point end){
     // 3.执行算法
     // 安全检查：防止 planner_ 未初始化
     if (currentPlanner) {
-        // 这里调用的是接口的 Plan，具体是用 A* 还是 Dijkstra，由 currentPlanner 的实际类型决定
-        return currentPlanner->Plan(gridMap_, start, end);
+        auto t0 = myreactor::Timestamp::now();
+        auto result = currentPlanner->Plan(gridMap_, start, end);
+        double planMs = (myreactor::Timestamp::now() - t0) / 1000.0;
+        planStats_.recordLatency(planMs);
+        return result;
     }
-    
+
     return {};
 }
 

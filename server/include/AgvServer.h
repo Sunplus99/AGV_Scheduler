@@ -2,9 +2,11 @@
 #include <myreactor/TcpServer.h>
 #include <myreactor/Connection.h>
 #include <myreactor/ThreadPool.h>
+#include <myreactor/Timestamp.h>
 #include <protocol/AgvCodec.h>
 #include <memory>
 #include <string>
+#include <atomic>
 #include "config/ServerConfig.h"
 
 namespace myreactor{
@@ -65,10 +67,10 @@ private:
     // 协议分发器
     codec::Dispatcher disPatcher_;
 
-    // 配置参数存储
-    // int tcpTimeoutSec_;
-    // int rpcTimeoutMs_;
-    // std::string mapPath_;
+    // QPS 统计
+    std::atomic<uint64_t> totalRequests_{0};  // 总请求计数
+    myreactor::Timestamp  qpsStartTime_;      // 计时开始时间（第一个请求到达时记录）
+    std::atomic<bool>     qpsStarted_{false}; // 是否已开始计时
 
 };
 
