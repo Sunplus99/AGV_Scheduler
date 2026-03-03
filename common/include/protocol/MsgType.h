@@ -9,17 +9,6 @@
 namespace agv{
 namespace protocol{
 
-/*
-普通枚举（enum MsgType { LOGIN_REQ = 1 };）有两个核心问题：
-    作用域污染：枚举值（比如 LOGIN_REQ）会暴露在全局作用域，和其他枚举 / 变量重名时冲突；
-    隐式类型转换：可以直接把枚举值当 int 用（比如 int x = LOGIN_REQ;），容易出错。
-enum class（C++11 引入的强类型枚举）解决了这些问题：
-    作用域隔离：枚举值必须通过 MsgType::LOGIN_REQ 访问，不会污染全局；
-    无隐式转换：不能直接写 int x = MsgType::LOGIN_REQ;，必须显式转换 int x = static_cast<int32_t>(MsgType::LOGIN_REQ);，类型更安全；
-    可指定底层类型：这就是 : int32_t 的作用,跨平台一致性.
-    
-enum class MsgType : int32_t 里的 : int32_t 仅指定枚举值的底层存储为 4 字节 int32_t，而 enum class 的强类型特性会让枚举类型和 int32_t 严格隔离，无法隐式转换；因此 head.type（int32_t）和 MsgType::LOGIN_RESP（MsgType 类型）必须显式强转才能比较，这是 enum class 的语法规则，和指定底层类型无关。
-*/
 enum class MsgType : int32_t {
     UNKNOWN        = 0,
 

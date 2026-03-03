@@ -11,31 +11,6 @@
 
 using namespace myreactor;
 
-/*
-class Socket{
-private:
-    // socketfd
-    const int fd_;
-public:
-    // 构造与析构函数 1.socket()系统调用返回的listenfd 2.accept4返回的clientfd
-    expilict Socket(int fd);
-
-    ~Socket();
-
-    // 核心方法 1.返回fd 2.设置方法 3.网络操作方法（bind,listen,accept)
-    int fd() const;
-
-    void setreuseaddr(bool on);
-
-    void settcpnodelay(bool on);
-
-    void bind(const InetAddress& servaddr);
-
-    void listen(int nn=128);
-
-    int accept(InetAddress& clientaddr); 
-};
-*/
 int Socket::createNonblocking(){
     int listenfd = socket(AF_INET,SOCK_STREAM|SOCK_NONBLOCK,0);
     if(listenfd < 0){

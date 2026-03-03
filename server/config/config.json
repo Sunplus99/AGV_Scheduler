@@ -12,8 +12,8 @@
     "map": {
         "type": "RANDOM",
         "path": "",
-        "width": 50,
-        "height": 50,
-        "ratio": 0.1
+        "width": 100,
+        "height": 100,
+        "ratio": 0.2
     }
 }

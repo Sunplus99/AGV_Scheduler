@@ -65,23 +65,6 @@ bool WorldManager::Init(int w, int h, double obstacleRatio) {
     return true;
 }
 
-/*
-起点检查完，锁释放了，状态变了怎么办？
-    这是一个经典的 TOCTOU (Time Of Check To Time Of Use) 竞态条件问题;计算出的路径在生成的瞬间，起点其实已经撞车了.
-为什么我们不把锁加在整个 PlanPath ? 后果：
-    系统卡死：A* 是 CPU 密集型计算（耗时操作）。如果在这里持有锁，意味着在计算路径的这几十毫秒内，所有其他 AGV 都无法上报位置（写锁被阻塞），所有其他线程的查询也会被阻塞
-    吞吐量暴跌：如果有 100 台车，它们只能排队一个接一个地算路，系统瞬间瘫痪。
-工业界如何解决？（乐观并发 + 层次化控制）
-    通常接受这个“瞬间的不一致性”，并通过后续手段弥补：
-    策略 A：分层检查 (Global vs Local)
-        Global Planner (WorldManager): 负责“宏观战略”。它的检查只是为了防止“显而易见的错误”（比如起点在墙里，或者起点当前明显被堵死）。即便由于竞态条件漏掉了一瞬间的变化，也无伤大雅。
-        Local Planner / Executor (AGV/TaskManager): 负责“微观战术”。当 TaskManager 把路径下发给 AGV 后，AGV 在真正执行每一步移动前，必须再次检查前方是否有障碍（通过车载雷达或申请资源锁）。
-    策略 B：任务下发时的二次校验 (Double Check)
-        PlanPath 只负责算路（耗时，不加锁）。
-        TaskManager 在拿到路径准备下发给 AGV 的那一刻（耗时极短），再次加锁快速检查一下路径的前几个点是否被占用。如果被占用，触发重算。
-PlanPath 里的检查是为了Fail Fast（快速失败），【避免明显无效的计算浪费 CPU】，而不是为了保证绝对的原子性安全。
-    这正是做架构设计时需要权衡的 Consistency (一致性) vs Performance (性能)。在路径规划环节，我们通常倒向 Performance。
-*/
 // ---------- 读操作 ----------
 std::vector<Point> WorldManager::PlanPath(int agvId, Point start, Point end){
     // 1.检查静态地图
@@ -93,15 +76,6 @@ std::vector<Point> WorldManager::PlanPath(int agvId, Point start, Point end){
     if (IsOccupied(start, agvId)) return {}; // 起点快速检查，避免进入后续计算
 
     // if (IsOccupied(end, agvId)) return {}; // 终点
-
-    /*
-    单例的稳定性 vs 组件的动态性
-        WorldManager 作为单例，其自身的内存生命周期贯穿整个进程，是稳定的‘容器’。但它持有的组件（如 planner_）是动态的，允许在运行时被替换（Replaced）
-    指针快照（Snapshot）机制
-        “我们在执行计算时，利用 shared_ptr 的引用计数机制建立了一个**‘局部快照’。 currentPlanner = planner_; 这一行代码，让局部变量也持有了策略对象的引用（引用计数 +1）。这就相当于给当前的策略对象买了一份‘临时保险’**。”
-    生命周期延长（Life Extension）
-        “此时，即使其他线程调用 SetPlanner 修改了成员变量 planner_ 的指向（让它指向新算法），旧的算法对象也不会被销毁。 因为我们的局部快照依然持有它。直到当前计算函数结束，局部变量离开作用域，旧对象的引用计数归零，它才会真正析构。这完美实现了无锁且安全的算法热切换。”
-    */
 
     // 获取当前【策略的 快照】
     // 使用 shared_lock (读锁) 保护 planner_ 指针的读取
@@ -123,11 +97,6 @@ std::vector<Point> WorldManager::PlanPath(int agvId, Point start, Point end){
     return {};
 }
 
-/*
-读操作（PlanPath/IsWalkable）占 99%，写操作（更新 AGV 状态）占 1%
-如果用普通 mutex：100 个线程同时请求寻路，只能排队加锁，性能极低；
-用 shared_mutex（读写锁）：多个读线程可以同时加读锁，只有写线程来的时候才阻塞，完美适配 “多读少写” 的场景。
-*/
 // 检查动态车辆
 bool WorldManager::IsOccupied(int x, int y, int selfId) const {
     // 检查某处是否有车辆，为了避免脏堵、读，需要加读锁
@@ -193,9 +162,6 @@ void WorldManager::OnAgvLogin(const model::LoginRequest& req) {
              info.uid, info.currentPos.x, info.currentPos.y, (int)info.status, info.battery);
 }
 
-/* “锁内极速计算，锁外从容打印”
-“准备数据 -> 极速更新 -> 延后处理” 模式
-*/
 // 2. 心跳：主要更新物理属性,顺带状态
 void WorldManager::OnHeartbeat(const model::Heartbeat& msg) {
     // 1. 准备数据
@@ -216,9 +182,6 @@ void WorldManager::OnHeartbeat(const model::Heartbeat& msg) {
             // --- 运维保活信息
             it->second.lastHeartbeatTime = now;
         } else {
-            // 策略：收到未知车辆心跳，打印警告
-            // LOG_WARN("Heartbeat from unknown AGV: %d", msg.agvId);
-            // 改成 记录标记
             isUnkownAgv = true;
         }
     }

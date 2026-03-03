@@ -11,10 +11,6 @@ namespace planner{
 struct Offset {int x , y;};
 static const Offset dirs[4] = {{0,-1},{1,0},{0,1},{-1,0}}; // 顺时针 ： 上 右 下 左
 
-// AStar::AStar() {
-//     // 编译器在这里生成构造代码，初始化 nodePool_
-//     // 此时它知道 sizeof(AStarNode)，一切正常！
-// }
 
 AStarSolver::~AStarSolver() {
     ReleaseNodes();

@@ -5,22 +5,14 @@
 
 namespace myreactor{
 
-/*
-    加入 append(void*) (写在 .h 为了内联)。
-    加入 appendInt32 / appendInt16 (通用网络工具)。
-    加入 append(string) (通用 C++ 工具)。
-*/
+
 
 class Buffer{
 private:
     // 头部预留空间
     static const size_t kCheapPrepend = 16; 
     static const size_t kInitialSize = 1024;
-    /*
-    设置8字节的kCheapPrepend 空间:
-        ① 可以通过移动 readerIndex_ 指针直接在原内存段前方填入协议头，避免了昂贵的消息整体挪动开销，将头部追加操作的复杂度从 $O(N)$ 降低到了 $O(1)$ 
-        ② 8 字节：足够容纳一个 64 位整数（int64_t），能满足绝大多数网络协议头部的需求，此外也是为了内存对齐，即8 字节是 64 位机器上标准的字长，有利于 CPU 访问内存的效率。
-    */
+
     std::vector<char> buffer_;
     size_t readerIndex_;
     size_t writerIndex_;
@@ -48,13 +40,6 @@ public:
     // ===========================================
     // 写入接口 (Append) 
     // ===========================================
-
-    /*
-    Buffer::appendInt32/hton :
-    	gvMessage 的包头（int32_t len/type/seq）;解决大小端，保证跨机器传输
-    Buffer::append:
-    	AgvMessage 的 body（JSON 字符串）
-    */
 
     // 1. 【基础核心】 (The Kernel)
     // 底层写入（移动writerIndex_） ; 不关心内容，原样拷贝

@@ -14,9 +14,6 @@ EventLoopThread::~EventLoopThread() {
 
 EventLoop* EventLoopThread::startLoop(){
    // 分离出IO从线程，从线程立马执行 threadFunc
-   /*
-   IO 线程池 这种“一旦创建，终身绑定，死循环陷入”的设计，正是 Reactor 模式 (One Loop Per Thread) 的精髓所在。
-   */
    thread_ = std::thread(&EventLoopThread::threadFunc, this);
    
    EventLoop* loop = nullptr;
@@ -31,7 +28,6 @@ EventLoop* EventLoopThread::startLoop(){
 
 void EventLoopThread::threadFunc(){
     // 1. 在栈上创建一个 EventLoop
-    //    此时 EventLoop 构造函数执行，记录的是当前子线程 ID！
     printf("create IOthread(%ld).\n", syscall(SYS_gettid));
     EventLoop loop;
 

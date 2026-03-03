@@ -15,13 +15,6 @@ bool GridMap::LoadMap(const std::string& filename) {
         return false;
     }
 
-    /*
-    链式调用：file >> width_ >> height_ 等价于 (file >> width_) >> height_，本质是两次调用流提取运算符：
-    先执行 file >> width_：从文件流 file 中读取一个数值，解析为 width_ 的类型（比如 int），并赋值给 width_；
-    file >> width_ 的返回值是 file 【对象本身的引用】（std::ifstream&），因此可以继续链式调用 >> height_，完成 height_ 的读取；
-    !(...) 取反的核心 —— 流状态的布尔转换
-    流对象（如 file）在「需要布尔值的上下文（比如 if 条件）」中，会触发隐式布尔转换：
-    */
     // 读取高宽
     if(!(file >> width_ >> height_)) {
         LOG_ERROR("Map file (%s) format error: header missing.\nUsing DEFAULT map.",filename.c_str());
@@ -62,22 +55,6 @@ void GridMap::CreateDefaultMap() {
     LOG_WARN("Default Map Created.");
 }
 
-/*
-如果你的地图是 1000x1000，面试官可能会问这类高质量问题，这也是你拿 Offer 的机会：
-
-内存问题：
-    “你的 grid_ 用 vector<vector<int>> 存储，在 1000x1000 下占多少内存？”
-    回答方向：int 是 4字节，100万个格子就是 4MB。其实不大。但如果为了极致优化，可以用 vector<uint8_t> 甚至 std::vector<bool> (BitMap) 来压缩到几百 KB。
-
-搜索效率：
-    “地图变大后，A 的 OPEN 表（优先队列）会变得很大，插入删除变慢，怎么优化？”*
-    回答方向：除了二叉堆，是否考虑过其他的堆结构？或者使用 JPS 跳点搜索来减少入队的节点数量？
-
-缓存友好性 (Cache Friendly)：
-    “vector<vector<int>> 是连续内存吗？”
-    回答方向：不是。它是一堆指向小 vector 的指针。
-    优化：应该用一维数组 vector<int> grid_(width * height) 来模拟二维数组，通过 index = y * width + x 来访问。这样内存是连续的，CPU 缓存命中率高，性能在 1000x1000 的地图上会有显著提升。（如果你能做到这一点，面试官会非常欣赏）
-*/
 
 // obstacleRatio: 障碍物比例 (0.0 - 1.0)，比如 0.2 表示 20% 是墙
 void GridMap::CreateRandomMap(int w, int h, double obstacleRatio) {
