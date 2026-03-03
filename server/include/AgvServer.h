@@ -18,13 +18,6 @@ namespace agv{
 class AgvServer{
 public:
     using spConnection = std::shared_ptr<myreactor::Connection>;
-
-    // AgvServer(const std::string& ip, const uint16_t& port, 
-    //           int iothreadnum=2, int workthreadnum=2,
-    //           int tcpTimeiurSec = 60,   // TCP 心跳超时
-    //           int rpcTimeoutMs = 5000,  // RPC 业务超时
-    //           const std::string& mapPath = "" // 地图路径
-    //          );
     
     // 单参数构造函数 explicit防隐式转换
     explicit AgvServer(const config::ServerConfig& config);
@@ -58,10 +51,6 @@ private:
 
     std::unique_ptr<myreactor::TcpServer> tcpServer_;
 
-    /*
-    资源归属权在上层，使用权下放给下层
-    AgvSession 与 TaskManager 不再依赖那个巨大的 AgvServer 类，它只依赖它真正需要的 ThreadPool
-    */
     std::unique_ptr<myreactor::ThreadPool> workerPool_;
 
     // 协议分发器

@@ -5,8 +5,6 @@
 #include "model/AgvStructs.h"
 
 
-// 若已包含命名空间的头文件，可直接写 ，但为了避免循环引用，不包含头文件, 选择前置声明
-// struct agv::manager::TaskContext;
 
 namespace agv {
     namespace manager {   // 打开命名空间
