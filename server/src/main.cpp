@@ -5,6 +5,7 @@
 #include <csignal>
 #include <thread>
 #include <atomic>
+#include <set>
 #include "manager/TaskManager.h"
 #include "manager/WorldManager.h"
 #include "chrono"
@@ -27,11 +28,11 @@ void signalHandler(int sig) {
 
 void WmsThreadFunc() {
     LOG_INFO("[WMS] Simulator Thread Started.");
-    LOG_INFO("[WMS] System warming up... Waiting for AGVs to login (10s)...");
+    LOG_INFO("[WMS] System warming up... Waiting for AGVs to login (15s)...");
 
     // 1. 预热阶段：等待 Client 启动并完成登录
     // 实际生产中可以调用 WorldMgr.GetOnlineCount() 来判断
-    for(int i = 0; i < 10; ++i) {
+    for(int i = 0; i < 15; ++i) {
         if(!g_running) return; // 随时响应退出信号
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
@@ -49,22 +50,73 @@ void WmsThreadFunc() {
 
     LOG_INFO("[WMS] Generating %d tasks for %d AGVs...", taskCount, onlineCount);
 
+    std::vector<agv::model::Point> usedTargets;  // 记录已使用的目标点（用于距离检查）
+    const int MIN_DISTANCE = 4;  // 目标点之间的最小距离（曼哈顿距离）- 降低要求
+
+    // 辅助函数：计算曼哈顿距离
+    auto manhattanDist = [](const agv::model::Point& a, const agv::model::Point& b) {
+        return std::abs(a.x - b.x) + std::abs(a.y - b.y);
+    };
+
+    int actualTaskCount = 0;  // 实际生成的任务数
+
     for (int i = 0; i < taskCount; ++i) {
-        agv::model::Point target = gridMap.GetRandomWalkablePoint();
-        agv::model::ActionType action = static_cast<agv::model::ActionType>(i % 3);  // 循环使用不同动作
+        agv::model::Point target;
+        int retryCount = 0;
+        bool isValid = false;
+
+        // 确保目标点：1.不在墙里（GetRandomWalkablePoint保证） 2.不被AGV占用 3.距离其他目标点足够远
+        // 移除可达性验证（太慢），交给调度算法处理
+        do {
+            target = gridMap.GetRandomWalkablePoint();
+            retryCount++;
+
+            // 检查是否被AGV占用
+            if (agv::manager::WorldManager::Instance().IsOccupied(target, -1)) {
+                continue;
+            }
+
+            // 检查与已有目标点的距离
+            bool tooClose = false;
+            for (const auto& existingTarget : usedTargets) {
+                if (manhattanDist(target, existingTarget) < MIN_DISTANCE) {
+                    tooClose = true;
+                    break;
+                }
+            }
+            if (tooClose) {
+                continue;
+            }
+
+            // 通过所有检查
+            isValid = true;
+            break;
+
+        } while (retryCount < 100);  // 降低重试次数
+
+        if (!isValid) {
+            LOG_WARN("[WMS] Failed to find valid target after 100 retries, skipping task %d.", i + 1);
+            continue;  // 跳过这个任务
+        }
+
+        usedTargets.push_back(target);
+
+        agv::model::ActionType action = static_cast<agv::model::ActionType>(i % 3);
 
         std::string taskId = TaskMgr.AddTask(target, action);
         LOG_INFO("[WMS] >>> Order %d/%d Created: ID=%s, Target=(%d,%d)",
                  i + 1, taskCount, taskId.c_str(), target.x, target.y);
 
+        actualTaskCount++;  // 记录实际生成数
+
         // 任务间隔 100ms
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
-    LOG_INFO("[WMS] All test orders dispatched. Entering Monitor Mode...");
+    LOG_INFO("[WMS] Task generation completed. Generated: %d/%d tasks.", actualTaskCount, taskCount);
 
-    // 告知 TaskManager 总任务数，用于判断"全部完成"时自动打印统计
-    TaskMgr.SetTotalTaskCount(static_cast<uint64_t>(taskCount));
+    // 告知 TaskManager 实际生成的任务数（而不是预期数）
+    TaskMgr.SetTotalTaskCount(static_cast<uint64_t>(actualTaskCount));
 
     // 3. 监控阶段
     // 保持线程存活，防止主进程退出。这里可以打印一些系统状态监控日志。

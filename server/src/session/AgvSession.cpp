@@ -136,15 +136,15 @@ void AgvSession::HandlePRequ(const PathRequest& req, int32_t seq) {
         // 记录开始时间
         auto startTime = myreactor::Timestamp::now();
 
-        // 求解路径
-        auto path = WorldMgr.PlanPath(self->GetId(), req.start, req.end);
+        // 求解路径（传递isReplan参数）
+        auto path = WorldMgr.PlanPath(self->GetId(), req.start, req.end, req.isReplan);
 
         // 计算路径规划延迟（微秒转毫秒）
         auto endTime = myreactor::Timestamp::now();
         double planningLatencyMs = (endTime - startTime) / 1000.0;
 
-        LOG_INFO("[AgvSession] AGV %d Path Planning: (%d,%d) -> (%d,%d), Result: %lu steps, Latency: %.2fms",
-                 self->GetId(), req.start.x, req.start.y, req.end.x, req.end.y, path.size(), planningLatencyMs);
+        LOG_INFO("[AgvSession] AGV %d Path Planning: (%d,%d) -> (%d,%d), Result: %lu steps, Latency: %.2fms, IsReplan: %s",
+                 self->GetId(), req.start.x, req.start.y, req.end.x, req.end.y, path.size(), planningLatencyMs, req.isReplan ? "Yes" : "No");
 
         // 构造回复
         PathResponse resp;
