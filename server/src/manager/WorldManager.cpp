@@ -1,8 +1,7 @@
 #include "manager/WorldManager.h"
 #include "utils/Logger.h"
 #include "algo/planner/AStarPlanner.h"
-#include "myreactor/Timestamp.h"
-#include "model/AgvStructs.h"  // 包含AgvStatus定义 
+#include "myreactor/Timestamp.h" 
 
 namespace agv{
 namespace manager{
@@ -84,17 +83,12 @@ PlanPath 里的检查是为了Fail Fast（快速失败），【避免明显无�
     这正是做架构设计时需要权衡的 Consistency (一致性) vs Performance (性能)。在路径规划环节，我们通常倒向 Performance。
 */
 // ---------- 读操作 ----------
-std::vector<Point> WorldManager::PlanPath(int agvId, Point start, Point end, bool isReplan){
+std::vector<Point> WorldManager::PlanPath(int agvId, Point start, Point end){
     // 1.检查静态地图
     if (gridMap_.IsObstacle(start.x, start.y)) return {};
     if (gridMap_.IsObstacle(end.x, end.y)) return {};
 
-    // 2.特殊情况：起点=终点，直接返回单点路径（已到达目标）
-    if (start.x == end.x && start.y == end.y) {
-        return {start};
-    }
-
-    // 3.检查动态占用
+    // 2.检查动态占用
     //  IsOccupied 内部有读锁，所以这里是线程安全的(能够进入说明没有正在改写)
     if (IsOccupied(start, agvId)) return {}; // 起点快速检查，避免进入后续计算
 
@@ -102,62 +96,28 @@ std::vector<Point> WorldManager::PlanPath(int agvId, Point start, Point end, boo
 
     /*
     单例的稳定性 vs 组件的动态性
-        WorldManager 作为单例，其自身的内存生命周期贯穿整个进程，是稳定的'容器'。但它持有的组件（如 planner_）是动态的，允许在运行时被替换（Replaced）
+        WorldManager 作为单例，其自身的内存生命周期贯穿整个进程，是稳定的‘容器’。但它持有的组件（如 planner_）是动态的，允许在运行时被替换（Replaced）
     指针快照（Snapshot）机制
-        "我们在执行计算时，利用 shared_ptr 的引用计数机制建立了一个**'局部快照'。 currentPlanner = planner_; 这一行代码，让局部变量也持有了策略对象的引用（引用计数 +1）。这就相当于给当前的策略对象买了一份'临时保险'**。"
+        “我们在执行计算时，利用 shared_ptr 的引用计数机制建立了一个**‘局部快照’。 currentPlanner = planner_; 这一行代码，让局部变量也持有了策略对象的引用（引用计数 +1）。这就相当于给当前的策略对象买了一份‘临时保险’**。”
     生命周期延长（Life Extension）
-        "此时，即使其他线程调用 SetPlanner 修改了成员变量 planner_ 的指向（让它指向新算法），旧的算法对象也不会被销毁。 因为我们的局部快照依然持有它。直到当前计算函数结束，局部变量离开作用域，旧对象的引用计数归零，它才会真正析构。这完美实现了无锁且安全的算法热切换。"
+        “此时，即使其他线程调用 SetPlanner 修改了成员变量 planner_ 的指向（让它指向新算法），旧的算法对象也不会被销毁。 因为我们的局部快照依然持有它。直到当前计算函数结束，局部变量离开作用域，旧对象的引用计数归零，它才会真正析构。这完美实现了无锁且安全的算法热切换。”
     */
 
-    // 3.获取当前【策略的快照】+ 需要避开的AGV位置
+    // 获取当前【策略的 快照】
     // 使用 shared_lock (读锁) 保护 planner_ 指针的读取
     std::shared_ptr<algo::planner::IPPlanner> currentPlanner;
-    std::vector<Point> avoidAgvPositions;
     {
-        std::shared_lock<std::shared_mutex> lock(agvMutex_);
+        std::shared_lock<std::shared_mutex> lock(agvMutex_); 
         currentPlanner = planner_; // 引用计数+1，保证在函数执行期间对象不被销毁
-
-        // 根据是否为重规划，决定避开哪些AGV
-        if (isReplan) {
-            // 重规划：只避开IDLE状态的AGV（和首次规划一样）
-            // MOVING的AGV会移动，不需要避开
-            for(auto& [id, info] : onlineAgvs_) {
-                if (id != agvId && info.status == model::AgvStatus::IDLE) {
-                    avoidAgvPositions.push_back(info.currentPos);
-                }
-            }
-        } else {
-            // 首次规划：只避开IDLE状态的AGV（完成任务停在原地的AGV）
-            for(auto& [id, info] : onlineAgvs_) {
-                if (id != agvId && info.status == model::AgvStatus::IDLE) {
-                    avoidAgvPositions.push_back(info.currentPos);
-                }
-            }
-        }
     }
-
-    // 4.执行算法（避开指定的AGV）
+    // 3.执行算法
     // 安全检查：防止 planner_ 未初始化
     if (currentPlanner) {
         auto t0 = myreactor::Timestamp::now();
-
-        // 如果有需要避开的AGV，创建临时地图副本，标记为障碍
-        if (!avoidAgvPositions.empty()) {
-            auto tempMap = gridMap_;
-            for (const auto& pos : avoidAgvPositions) {
-                tempMap.SetObstacle(pos.x, pos.y, true);
-            }
-            auto result = currentPlanner->Plan(tempMap, start, end);
-            double planMs = (myreactor::Timestamp::now() - t0) / 1000.0;
-            planStats_.recordLatency(planMs);
-            return result;
-        } else {
-            // 没有需要避开的AGV，直接规划
-            auto result = currentPlanner->Plan(gridMap_, start, end);
-            double planMs = (myreactor::Timestamp::now() - t0) / 1000.0;
-            planStats_.recordLatency(planMs);
-            return result;
-        }
+        auto result = currentPlanner->Plan(gridMap_, start, end);
+        double planMs = (myreactor::Timestamp::now() - t0) / 1000.0;
+        planStats_.recordLatency(planMs);
+        return result;
     }
 
     return {};

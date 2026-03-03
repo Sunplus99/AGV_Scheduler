@@ -96,7 +96,7 @@ void TaskManager::OnDispatchResult(int agvId, const std::string& taskId, bool su
 
 void TaskManager::SetTotalTaskCount(uint64_t total) {
     totalTaskCount_.store(total, std::memory_order_relaxed);
-    LOG_WARN("[TaskManager] Total task count set to %lu.", total);
+    LOG_INFO("[TaskManager] Total task count set to %lu.", total);
 }
 
 std::string TaskManager::AddTask(Point targetPos, ActionType targetAct) {
@@ -229,13 +229,7 @@ void TaskManager::ExecuteDispatch(
         // ---------------- 核心调度 ----------------
         // 调用调度算法
         LOG_INFO("[TaskManager] Dispatching: %lu tasks, %lu candidate AGVs", tasksSnapst.size(), candiAgvs.size());
-
-        // 记录调度算法计算时间
-        auto schedStart = myreactor::Timestamp::now();
         auto decisions = currSche->Dispatch(tasksSnapst, candiAgvs);
-        double schedMs = (myreactor::Timestamp::now().usSinceEpoch() - schedStart.usSinceEpoch()) / 1000.0;
-        scheduleStats_.recordLatency(schedMs);
-
         LOG_INFO("[TaskManager] Scheduler returned %lu decisions", decisions.size());
 
         // ---------------- 执行决策 ----------------
@@ -313,6 +307,11 @@ void TaskManager::ExecuteDispatch(
             runningTasks_[agvId] = task;
             logs.push_back({LogAction::DISPATCH_SUCCESS, task->req.taskId, agvId, dec.Distance});
 
+            // 记录调度延迟：从任务创建（AddTask入队）到成功下发的时间
+            double schedMs = (myreactor::Timestamp::now().usSinceEpoch()
+                              - task->createTime.usSinceEpoch()) / 1000.0;
+            scheduleStats_.recordLatency(schedMs);
+            
             hasAssignment = true;
         }
 
@@ -587,7 +586,7 @@ void TaskManager::OnTaskReport(const TaskReport& msg) {
 
     // 1.没找到任务或任务不匹配
     if(!istask) {
-        // LOG_WARN("[TaskManager] Ignored report from AGV %d: No matching running task.", msg.agvId);
+        LOG_WARN("[TaskManager] Ignored report from AGV %d: No matching running task.", msg.agvId);
         return;
     }
 
@@ -622,26 +621,20 @@ void TaskManager::OnTaskReport(const TaskReport& msg) {
         taskStats_.incrementCount();
         taskStats_.recordLatency(durationSec * 1000.0);  // 转换为毫秒
 
-        // 检查是否所有任务都完成了（两个队列都为空）
-        bool allTasksCompleted = false;
-        size_t pendingCount = 0;
-        size_t runningCount = 0;
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            pendingCount = pendingTasks_.size();
-            runningCount = runningTasks_.size();
-            allTasksCompleted = pendingTasks_.empty() && runningTasks_.empty();
+        // 每完成 100 个任务，打印一次统计
+        if (taskStats_.getCount() % 100 == 0) {
+            LOG_INFO("[PERF] Task Statistics: Count=%lu, Avg=%.2fms",
+                     taskStats_.getCount(), taskStats_.getAvgLatency());
         }
 
-        LOG_WARN("[TaskManager] Task completed. Pending: %lu, Running: %lu, Total completed: %lu",
-                 pendingCount, runningCount, taskStats_.getCount());
-
-        if (allTasksCompleted) {
-            LOG_WARN("[PERF] ========== All Tasks Completed! Performance Report ==========");
+        // 检查是否所有任务都完成了（WMS 已设置总数 且 完成数 == 总数）
+        uint64_t total = totalTaskCount_.load(std::memory_order_relaxed);
+        if (total > 0 && taskStats_.getCount() >= total) {
+            LOG_INFO("[PERF] ========== All Tasks Completed! Performance Report ==========");
             scheduleStats_.printStats("Scheduling Latency");
             taskStats_.printStats("Task Completion");
             WorldMgr.GetPlanStats().printStats("Path Planning Latency");
-            LOG_WARN("[PERF] =============================================================");
+            LOG_INFO("[PERF] =============================================================");
         }
 
         // 有小车空出，下一轮调度

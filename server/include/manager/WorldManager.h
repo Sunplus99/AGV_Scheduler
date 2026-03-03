@@ -54,7 +54,7 @@ public:
     // =================== 核心业务 ===================
     // ---------- 读操作 ----------
     // 路径规划
-    std::vector<Point> PlanPath(int agvId, Point start, Point end, bool isReplan = false);
+    std::vector<Point> PlanPath(int agvId, Point start, Point end);
 
     // 检查动态车辆占用
     bool IsOccupied(int x, int y, int selfId) const;

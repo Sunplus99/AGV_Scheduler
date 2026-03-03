@@ -5,7 +5,6 @@
 #include <cmath>
 #include <iostream>
 #include <iomanip>
-#include "Logger.h"
 
 namespace utils {
 
@@ -77,16 +76,16 @@ public:
         uint64_t count = getCount();
         double avg = getAvgLatency();
 
-        LOG_WARN("[PERF] %s Statistics:", name.c_str());
-        LOG_WARN("  Total Count: %lu", count);
-        LOG_WARN("  Avg Latency: %.2f ms", avg);
+        std::cout << "[PERF] " << name << " Statistics:" << std::endl;
+        std::cout << "  Total Count: " << count << std::endl;
+        std::cout << "  Avg Latency: " << std::fixed << std::setprecision(2) << avg << " ms" << std::endl;
 
         if (!latencies_.empty()) {
             double p50, p95, p99;
             const_cast<PerfStats*>(this)->calculatePercentiles(p50, p95, p99);
-            LOG_WARN("  P50 Latency: %.2f ms", p50);
-            LOG_WARN("  P95 Latency: %.2f ms", p95);
-            LOG_WARN("  P99 Latency: %.2f ms", p99);
+            std::cout << "  P50 Latency: " << std::fixed << std::setprecision(2) << p50 << " ms" << std::endl;
+            std::cout << "  P95 Latency: " << std::fixed << std::setprecision(2) << p95 << " ms" << std::endl;
+            std::cout << "  P99 Latency: " << std::fixed << std::setprecision(2) << p99 << " ms" << std::endl;
         }
     }
 

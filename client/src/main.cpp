@@ -145,11 +145,6 @@ private:
      std::chrono::steady_clock::now();
     int32_t txSeq_ = 0;
 
-    // 死锁检测
-    int consecutiveReplans_ = 0;  // 连续重规划次数
-    std::chrono::steady_clock::time_point restUntil_;  // 休息到什么时候
-    bool isResting_ = false;  // 是否在休息状态
-
 private:
 
     // 设置 Socket 超时时间的辅助函数
@@ -321,58 +316,16 @@ private:
         }
     }
 
-    void RequestPath(Point end, bool isReplan = false) {
-        if (isReplan) {
-            consecutiveReplans_++;
-
-            // 死锁检测：如果连续重规划3次以上，进入休息模式
-            if (consecutiveReplans_ >= 3) {
-                isResting_ = true;
-                // 随机休息5-10秒，打破同步性
-                static std::random_device rd;
-                static std::mt19937 gen(rd());
-                std::uniform_int_distribution<> dis(5000, 10000);
-                int restMs = dis(gen);
-
-                restUntil_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(restMs);
-                printf("[AGV-%d] ⚠️  Deadlock detected! Resting for %.1f seconds to avoid livelock...\n",
-                       id_, restMs / 1000.0);
-
-                consecutiveReplans_ = 0;
-
-                // 清空路径，停止工作
-                path_.clear();
-                pathIndex_ = 0;
-                isWorking_ = false;
-                return;  // 不发送路径请求
-            }
-        }
-
-        // 清空当前路径，停止移动，等待新路径
-        path_.clear();
-        pathIndex_ = 0;
-        isWorking_ = false;  // 暂停工作状态，等待新路径
-
+    void RequestNewPath(Point end) {
         json j;
         j["mapId"] = 1;
         j["start"] = { {"x", currentPos_.x}, {"y", currentPos_.y} };
         j["end"] = { {"x", end.x}, {"y", end.y} };
         j["allowReplan"] = true;
-        j["isReplan"] = isReplan;  // 标记是否为重规划
         SendPacket(MsgType::PATH_REQ, j);
 
-        if (isReplan) {
-            printf("[AGV-%d] Requesting path: (%d,%d) -> (%d,%d) [Replan #%d]\n",
-                   id_, currentPos_.x, currentPos_.y, end.x, end.y, consecutiveReplans_);
-        } else {
-            printf("[AGV-%d] Requesting path: (%d,%d) -> (%d,%d) [Initial]\n",
-                   id_, currentPos_.x, currentPos_.y, end.x, end.y);
-        }
-    }
-
-    // 兼容旧代码：重新规划路径
-    void RequestNewPath(Point end) {
-        RequestPath(end, true);
+        printf("[AGV-%d] Requesting path: (%d,%d) -> (%d,%d)\n",
+               id_, currentPos_.x, currentPos_.y, end.x, end.y);
     }
 
     // --- 核心逻辑循环 ---
@@ -380,31 +333,11 @@ private:
         // 逻辑判断用 steady_clock (为了防时间跳变)
         auto now = std::chrono::steady_clock::now();
 
-        // 0. 检查是否在休息状态（死锁避让）
-        if (isResting_) {
-            if (now >= restUntil_) {
-                isResting_ = false;
-                printf("[AGV-%d] ✓ Rest finished, requesting new path...\n", id_);
-                RequestNewPath(currentTaskTarget_);
-            }
-            return;  // 休息期间不做任何事
-        }
-
         // 1. 发送心跳 (每1秒)
         auto diffHb = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastHeartbeatTime_).count();
         if (isLogged_ && (diffHb > 1000)) {
             SendHeartbeat();
             lastHeartbeatTime_ = now;
-        }
-
-        // 1.5 检查路径规划失败的情况：有任务但没有路径，定期重试
-        if (!currentTaskId_.empty() && !isWorking_ && path_.empty()) {
-            auto diffRetry = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastMoveTime_).count();
-            if (diffRetry > 5000) {  // 5秒后重试
-                printf("[AGV-%d] Retrying path planning for task %s...\n", id_, currentTaskId_.c_str());
-                RequestNewPath(currentTaskTarget_);
-                lastMoveTime_ = now;  // 更新时间，避免频繁重试
-            }
         }
 
         // 2. 模拟移动 (每500ms走一步)
@@ -417,61 +350,13 @@ private:
                 // 【上帝视角避障】
                 // 模拟雷达：看一眼下一步有没有别的车
                 if (g_world.IsOccupied(id_, nextStep)) {
-                    // 检查障碍物类型：是AGV还是静态障碍
-                    bool isAgv = false;
-                    {
-                        std::lock_guard<std::mutex> lock(g_world.mtx);
-                        for (auto& [otherId, pos] : g_world.positions) {
-                            if (otherId != id_ && pos.x == nextStep.x && pos.y == nextStep.y) {
-                                isAgv = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (isAgv) {
-                        // 被其他AGV占用，等待一段时间
-                        static std::map<int, int> waitCount;
-                        static std::map<int, int> waitThreshold;  // 每辆车的等待阈值
-
-                        // 初始化随机等待阈值（8-12次，即4-6秒）
-                        if (waitThreshold.find(id_) == waitThreshold.end()) {
-                            static std::random_device rd;
-                            static std::mt19937 gen(rd());
-                            std::uniform_int_distribution<> dis(8, 12);
-                            waitThreshold[id_] = dis(gen);
-                        }
-
-                        waitCount[id_]++;
-
-                        if (waitCount[id_] > waitThreshold[id_]) {
-                            printf("[AGV-%d] Blocked by AGV for too long, requesting new path...\n", id_);
-                            RequestNewPath(path_.back());
-                            waitCount[id_] = 0;
-
-                            // 重新随机化等待阈值，打破同步
-                            static std::random_device rd;
-                            static std::mt19937 gen(rd());
-                            std::uniform_int_distribution<> dis(8, 12);
-                            waitThreshold[id_] = dis(gen);
-                        }
-                    } else {
-                        // 静态障碍物（不应该出现在路径中，可能是规划错误），立即重新规划
-                        printf("[AGV-%d] Blocked by static obstacle at (%d,%d), requesting new path...\n",
-                               id_, nextStep.x, nextStep.y);
-                        RequestNewPath(path_.back());
-                    }
-
+                    // 发现障碍！停止移动，请求服务器重规划
+                    // 目标点是路径的终点
+                    RequestNewPath(path_.back());
+                    
                     lastMoveTime_ = now;
-                    return;
+                    return; 
                 }
-
-                // 清除等待计数（成功移动）
-                static std::map<int, int> waitCount;
-                waitCount[id_] = 0;
-
-                // 重置死锁检测计数（成功移动说明没有死锁）
-                consecutiveReplans_ = 0;
 
                 // 无障碍，走动
                 currentPos_ = nextStep;
@@ -487,7 +372,7 @@ private:
                 // 走完了
                 isWorking_ = false;
                 path_.clear();
-                SendTaskReport(AgvStatus::IDLE, 1.0); //
+                SendTaskReport(AgvStatus::IDLE, 1.0); // 
                 printf("[AGV-%d] Task Completed.\n", id_);
             }
         }
@@ -516,15 +401,16 @@ private:
                 // 1. 更新状态
                 currentTaskId_ = j["taskId"];
                 currentTaskTarget_ = { j["targetPos"]["x"], j["targetPos"]["y"] };
-
-                printf("[AGV-%d] Received Task [%s] -> Go to (%d, %d)\n",
+                
+                printf("[AGV-%d] Received Task [%s] -> Go to (%d, %d)\n", 
                        id_, currentTaskId_.c_str(), currentTaskTarget_.x, currentTaskTarget_.y);
 
                 // 2. 立即回复 ACK (TaskReport)
-                SendTaskReport(AgvStatus::IDLE, 0.0 , seq);
+                SendTaskReport(AgvStatus::IDLE, 0.0 , seq); 
 
-                // 3. 发起寻路请求 (首次规划，不避开其他AGV)
-                RequestPath(currentTaskTarget_, false);
+                // 3. 发起寻路请求 (参数是任务目的地)
+                RequestNewPath(currentTaskTarget_);
+                printf("[AGV-%d] Requesting Path to target point(%d,%d)...\n", id_, currentTaskTarget_.x, currentTaskTarget_.y);
                 break;
             }
 
@@ -534,31 +420,22 @@ private:
                     for (auto& p : j["pathPoints"]) {
                         path_.push_back({p["x"], p["y"]});
                     }
+                    pathIndex_ = 0;
 
-                    // 检查路径长度
+                    // 检查路径是否为空（已经在目标位置）
                     if (path_.empty()) {
-                        // 空路径（不应该发生，但做防御性处理）
-                        printf("[AGV-%d] Warning: Received empty path!\n", id_);
-                        isWorking_ = false;
-                    } else if (path_.size() == 1) {
-                        // 单点路径：起点=终点，已经在目标位置
+                        // 已经在目标位置，立即完成任务
                         printf("[AGV-%d] Already at target! Task completed immediately.\n", id_);
                         SendTaskReport(AgvStatus::IDLE, 1.0);
-                        currentTaskId_ = "";
                         isWorking_ = false;
                     } else {
-                        // 多点路径：需要移动
-                        pathIndex_ = 1;  // 从第二个点开始移动（跳过起点）
+                        // 有路径，开始执行
                         isWorking_ = true;
                         printf("[AGV-%d] Path Planned! Steps: %lu. Starting...\n", id_, path_.size());
                     }
                 } else {
-                    // 路径规划失败（被完全堵死，无法到达目标）
-                    printf("[AGV-%d] Path Planning Failed! Blocked. Will retry later...\n", id_);
-                    // 保持任务状态，等待重新规划（通过死锁检测机制触发）
-                    isWorking_ = false;
-                    path_.clear();
-                    pathIndex_ = 0;
+                    printf("[AGV-%d] Path Planning Failed! Blocked.\n", id_);
+                    // RequestNewPath(currentTaskTarget_);
                 }
                 break;
             }
@@ -600,7 +477,7 @@ int main(int argc, char* argv[]) {
         int y = 1 + gy * cellSize + cellSize / 2;
 
         threads.emplace_back([agvId, x, y]() {
-            SimulatedAgv agv(agvId, "192.168.184.128", 8888, {x, y});
+            SimulatedAgv agv(agvId, "127.0.0.1", 8888, {x, y});
             agv.Run();
         });
 

@@ -173,13 +173,13 @@ void AgvServer::Stop() {
                              - qpsStartTime_.usSinceEpoch()) / 1000000.0;
         uint64_t total = totalRequests_.load(std::memory_order_relaxed);
         double qps = (elapsedSec > 0) ? (total / elapsedSec) : 0;
-        LOG_WARN("[PERF] ========== Performance Report ==========");
-        LOG_WARN("[PERF] QPS: Total=%lu, Elapsed=%.1fs, QPS=%.1f req/s", total, elapsedSec, qps);
+        LOG_INFO("[PERF] ========== Performance Report ==========");
+        LOG_INFO("[PERF] QPS: Total=%lu, Elapsed=%.1fs, QPS=%.1f req/s", total, elapsedSec, qps);
     }
     TaskMgr.GetScheduleStats().printStats("Scheduling Latency");
     TaskMgr.GetTaskStats().printStats("Task Completion");
     WorldMgr.GetPlanStats().printStats("Path Planning Latency");
-    LOG_WARN("[PERF] ==========================================");
+    LOG_INFO("[PERF] ==========================================");
 
     tcpServer_->stop();  // 先切断流量入口
     workerPool_->stop(); // 等待现有任务处理完
@@ -198,7 +198,7 @@ void AgvServer::OnTcpMessage(const spConnection& conn, myreactor::Buffer* buf){
     // 第一个请求到达时开始计时，排除预热期干扰
     if (!qpsStarted_.exchange(true, std::memory_order_relaxed)) {
         qpsStartTime_ = myreactor::Timestamp::now();
-        LOG_WARN("[PERF] QPS timing started (first request received).");
+        LOG_INFO("[PERF] QPS timing started (first request received).");
     }
     totalRequests_.fetch_add(1, std::memory_order_relaxed);
     disPatcher_.dispatch(conn, buf);

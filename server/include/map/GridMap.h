@@ -25,13 +25,6 @@ public:
     bool IsObstacle(int x, int y) const;
     bool IsObstacle(const agv::model::Point& p) const;
 
-    // 动态设置障碍物（用于临时标记IDLE的AGV位置）
-    void SetObstacle(int x, int y, bool isObstacle) {
-        if (x >= 0 && x < width_ && y >= 0 && y < height_) {
-            grid_[y][x] = isObstacle ? 1 : 0;
-        }
-    }
-
     /*
     1. 语法层面的自动（隐式 inline）
         在 C++ 标准中，直接定义在类声明内部（头文件中）的成员函数，会被编译器自动视为隐式 inline

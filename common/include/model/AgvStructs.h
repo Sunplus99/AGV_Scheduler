@@ -242,9 +242,8 @@ struct PathRequest {
     Point start;
     Point end;
     bool allowReplan;
-    bool isReplan = false;  // 是否为重规划（默认false）
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PathRequest, mapId, start, end, allowReplan, isReplan)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(PathRequest, mapId, start, end, allowReplan)
 
 // [MsgType::PATH_RESP] 寻路响应
 struct PathResponse {
