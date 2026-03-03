@@ -154,5 +154,8 @@ file(COPY ${CMAKE_SOURCE_DIR}/server/config/config.json
 file(COPY ${CMAKE_SOURCE_DIR}/server/maps 
      DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
+# 自动创建日志目录
+file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/logs)
+
 message(STATUS "Build Configured. Output Path: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
