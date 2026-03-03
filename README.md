@@ -59,7 +59,7 @@
 mkdir -p build && cd build
 cmake .. && make -j$(nproc)
 
-# 2. 启动服务端（WARN 日志级别，减少 IO 开销）
+# 2. 启动服务端（WARN 日志级别，减少磁盘 IO 开销）
 cd ../bin
 ./AgvServer WARN
 
